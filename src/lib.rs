@@ -192,9 +192,24 @@ impl Note {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
 
     #[test]
-    fn it_works() {
-        assert!(true);
+    fn id_test() {
+        let note = Note::new(PRIVKEY, "esptest");
+        let id = note.id;
+        assert_eq!(
+            id,
+            *b"1a892186182fc21b33dab71c62b9aeab2df926b905db7e10e671b65d78e6a019"
+        );
+    }
+
+    #[test]
+    fn serialized_test() {
+        let note = Note::new(PRIVKEY, "esptest");
+        let msg = br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"1a892186182fc21b33dab71c62b9aeab2df926b905db7e10e671b65d78e6a019","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"eca27038afc8b1946acfcb3ace9ef4885b15b008507c0e84ea782b3dc222b8f9f1ebfd10c67a57d750315afaef8a77e93cc00836e29d6f662482fb43a93c14b4","tags":[]}]"#;
+        let to_relay = note.to_relay();
+        assert_eq!(to_relay[358], msg[358]);
     }
 }
