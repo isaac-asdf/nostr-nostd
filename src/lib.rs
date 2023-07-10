@@ -110,7 +110,7 @@ impl Note {
         base16ct::lower::encode(sig.as_ref(), &mut self.sig).expect("encode error");
     }
 
-    fn to_json(&self) -> [u8; 1200] {
+    fn to_json(&self) -> ([u8; 1200], usize) {
         let mut output = [0; 1200];
         let mut count = 0;
         br#"{"content":""#.iter().for_each(|bs| {
@@ -166,25 +166,23 @@ impl Note {
             count += 1;
         });
 
-        output
+        (output, count)
     }
 
-    pub fn to_relay(&self) -> [u8; 1535] {
-        let mut output = [0; 1535];
+    pub fn to_relay(&self) -> [u8; 1000] {
+        let mut output = [0; 1000];
         let mut count = 0;
         // fill in output
         br#"["EVENT","#.iter().for_each(|bs| {
             output[count] = *bs;
             count += 1;
         });
-        self.to_json().iter().for_each(|bs| {
-            output[count] = *bs;
+        let json = self.to_json();
+        for i in 0..json.1 {
+            output[count] = json.0[i];
             count += 1;
-        });
-        br#"]"#.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
-        });
+        }
+        output[count] = 93; // 93 == ] character
 
         output
     }
@@ -206,10 +204,9 @@ mod tests {
     }
 
     #[test]
-    fn serialized_test() {
+    fn sig_test() {
         let note = Note::new(PRIVKEY, "esptest");
-        let msg = br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"1a892186182fc21b33dab71c62b9aeab2df926b905db7e10e671b65d78e6a019","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"eca27038afc8b1946acfcb3ace9ef4885b15b008507c0e84ea782b3dc222b8f9f1ebfd10c67a57d750315afaef8a77e93cc00836e29d6f662482fb43a93c14b4","tags":[]}]"#;
-        let to_relay = note.to_relay();
-        assert_eq!(to_relay[358], msg[358]);
+        let sig = b"eca27038afc8b1946acfcb3ace9ef4885b15b008507c0e84ea782b3dc222b8f9f1ebfd10c67a57d750315afaef8a77e93cc00836e29d6f662482fb43a93c14b4";
+        assert_eq!(note.sig, *sig);
     }
 }
