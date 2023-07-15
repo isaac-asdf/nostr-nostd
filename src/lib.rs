@@ -28,12 +28,13 @@ impl Note {
     pub fn new(privkey: &str, content: &str, created_at: u32) -> Self {
         let mut note = Note {
             id: [0; 64],
-            pubkey: *b"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf",
+            pubkey: [0; 64],
             created_at,
             kind: NoteKinds::ShortNote,
             content: content.into(),
             sig: [0; 128],
         };
+        note.set_pubkey(privkey);
         note.set_id();
         note.set_sig(privkey);
         note
@@ -94,6 +95,14 @@ impl Note {
             count += 1;
         });
         (hash_str, count)
+    }
+
+    fn set_pubkey(&mut self, privkey: &str) {
+        let mut buf = [AlignedType::zeroed(); 64];
+        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf).unwrap();
+        let key_pair = KeyPair::from_seckey_str(&sig_obj, privkey).expect("priv key failed");
+        let pubkey = &key_pair.public_key().serialize()[1..33];
+        base16ct::lower::encode(pubkey, &mut self.pubkey).expect("encode error");
     }
 
     fn set_id(&mut self) {
@@ -202,6 +211,16 @@ impl Note {
 mod tests {
     use super::*;
     const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
+
+    #[test]
+    fn pubkey_test() {
+        let note = Note::new(PRIVKEY, "esptest", 1686880020);
+        let pubkey = note.pubkey;
+        assert_eq!(
+            pubkey,
+            *b"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"
+        );
+    }
 
     #[test]
     fn id_test() {
