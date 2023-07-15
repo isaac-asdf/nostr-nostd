@@ -9,7 +9,14 @@ A demo project can be seen [here](https://github.com/isaac-asdf/esp32-nostr-clie
 
 # Implemented
 
+- Basic Kind 1 note creation
+
 # Future improvements
+
+- Add `tags` input
+- Support more note kinds, investigate Kind 4 for private sending in an IOT context
+- Investigate passing in a working buffer, or seeing what common best-practices are for that
+- Replace `Heapless` string with byte array?
 
 [//]: # "badges"
 [crate-image]: https://buildstats.info/crate/nostr-nostd
