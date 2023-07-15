@@ -18,18 +18,18 @@ impl NoteKinds {
 pub struct Note {
     id: [u8; 64],
     pubkey: [u8; 64],
-    created_at: [u8; 10],
+    created_at: u32,
     kind: NoteKinds,
     content: String<64>,
     sig: [u8; 128],
 }
 
 impl Note {
-    pub fn new(privkey: &str, content: &str) -> Self {
+    pub fn new(privkey: &str, content: &str, created_at: u32) -> Self {
         let mut note = Note {
             id: [0; 64],
             pubkey: *b"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf",
-            created_at: *b"1686880020",
+            created_at,
             kind: NoteKinds::ShortNote,
             content: content.into(),
             sig: [0; 128],
@@ -37,6 +37,21 @@ impl Note {
         note.set_id();
         note.set_sig(privkey);
         note
+    }
+
+    fn timestamp_bytes(&self) -> [u8; 10] {
+        // thanks to ChatGPT for the below code :)
+        let mut buffer = [0_u8; 10];
+        let mut idx = buffer.len();
+        let mut n = self.created_at;
+
+        while n > 0 && idx > 0 {
+            idx -= 1;
+            buffer[idx] = b'0' + (n % 10) as u8;
+            n /= 10;
+        }
+
+        buffer
     }
 
     fn to_hash_str(&self) -> ([u8; 1536], usize) {
@@ -54,7 +69,7 @@ impl Note {
             hash_str[count] = *bs;
             count += 1;
         });
-        self.created_at.iter().for_each(|bs| {
+        self.timestamp_bytes().iter().for_each(|bs| {
             hash_str[count] = *bs;
             count += 1;
         });
@@ -83,9 +98,6 @@ impl Note {
 
     fn set_id(&mut self) {
         let (remaining, len) = self.to_hash_str();
-        // let to_print = unsafe { core::str::from_utf8_unchecked(&remaining[..len]) };
-        // Finish can be called as many times as desired to get mutliple copies of the
-        // output.
         let mut hasher = Sha256::new();
         hasher.update(&remaining[..len]);
         let results = hasher.finalize();
@@ -122,7 +134,7 @@ impl Note {
             output[count] = *bs;
             count += 1;
         });
-        self.created_at.iter().for_each(|bs| {
+        self.timestamp_bytes().iter().for_each(|bs| {
             output[count] = *bs;
             count += 1;
         });
@@ -193,7 +205,7 @@ mod tests {
 
     #[test]
     fn id_test() {
-        let note = Note::new(PRIVKEY, "esptest");
+        let note = Note::new(PRIVKEY, "esptest", 1686880020);
         let id = note.id;
         assert_eq!(
             id,
@@ -202,8 +214,16 @@ mod tests {
     }
 
     #[test]
+    fn timestamp_test() {
+        let note = Note::new(PRIVKEY, "esptest", 1686880020);
+        let hash_correct = *b"1686880020";
+        let ts = note.timestamp_bytes();
+        assert_eq!(ts, hash_correct);
+    }
+
+    #[test]
     fn hashstr_test() {
-        let note = Note::new(PRIVKEY, "esptest");
+        let note = Note::new(PRIVKEY, "esptest", 1686880020);
         let hash_correct = br#"[0,"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf",1686880020,1,[],"esptest"]"#;
         let (hashed, len) = note.to_hash_str();
         let hashed = &hashed[..len];
@@ -211,18 +231,11 @@ mod tests {
     }
 
     #[test]
-    fn sig_test() {
-        let note = Note::new(PRIVKEY, "esptest");
-        let correct_sig = b"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab";
-        assert_eq!(note.sig, *correct_sig);
+    fn to_relay_test() {
+        let output =  br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}]"#;
+        let test =    br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}]"#;
+        let note = Note::new(PRIVKEY, "esptest", 1686880020);
+        let (msg, len) = note.to_relay();
+        assert_eq!(&msg[0..len], output);
     }
-
-    // #[test]
-    // fn to_relay_test() {
-    //     let output =  br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}]"#;
-    // let test =    br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}]"#;
-    //     let note = Note::new(PRIVKEY, "esptest");
-    //     let (msg, len) = note.to_relay();
-    //     assert_eq!(&msg[0..len], output);
-    // }
 }
