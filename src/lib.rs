@@ -1,8 +1,20 @@
 #![no_std]
+//! Implementation of [Nostr](https://nostr.com/) note creation for a no_std environment.
+//!
+//! # Examples
+//! ```
+//! use nostr_nostd::Note;
+//! const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
+//! let note = Note::new(PRIVKEY, "test note", 1686880020, [0; 32]);
+//! let (msg, len) = note.serialize_to_relay();
+//! let msg = &msg[0..len];
+//! ```
+//!
 use heapless::String;
 use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message};
 use sha2::{Digest, Sha256};
 
+/// Defined in [nost-protocol](https://github.com/nostr-protocol/nips/tree/master#event-kinds)
 pub enum NoteKinds {
     ShortNote,
 }
@@ -15,16 +27,28 @@ impl NoteKinds {
     }
 }
 
+/// Representation of Nostr Note
 pub struct Note {
+    /// ID of note
     id: [u8; 64],
+    /// Derived from privkey, refers to note creator
     pubkey: [u8; 64],
+    /// Unix timestamp
     created_at: u32,
+    /// Hardcoded to kind 1
     kind: NoteKinds,
     content: String<64>,
     sig: [u8; 128],
 }
 
 impl Note {
+    /// Returns a new Note
+    /// # Arguments
+    ///
+    /// * `content` - data to be included in "content" field
+    /// * `aux_rnd` - MUST be unique for each note created to avoid leaking private key
+    /// * `created_at` - Unix timestamp for note creation time
+    ///
     pub fn new(privkey: &str, content: &str, created_at: u32, aux_rnd: [u8; 32]) -> Self {
         let mut note = Note {
             id: [0; 64],
@@ -187,7 +211,12 @@ impl Note {
         (output, count)
     }
 
-    pub fn to_relay(&self) -> ([u8; 1000], usize) {
+    /// Serializes the note so it can sent to a relay
+    /// # Returns
+    ///
+    /// * `[u8; 1000]` - lower case hex encoded byte array of note, to be sent to relay
+    /// * `usize` - length of the buffer used
+    pub fn serialize_to_relay(&self) -> ([u8; 1000], usize) {
         let mut output = [0; 1000];
         let mut count = 0;
         // fill in output
@@ -250,10 +279,10 @@ mod tests {
     }
 
     #[test]
-    fn to_relay_test() {
+    fn serialize_to_relay_test() {
         let output =  br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}]"#;
         let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
-        let (msg, len) = note.to_relay();
+        let (msg, len) = note.serialize_to_relay();
         assert_eq!(&msg[0..len], output);
     }
 }
