@@ -25,7 +25,7 @@ pub struct Note {
 }
 
 impl Note {
-    pub fn new(privkey: &str, content: &str, created_at: u32) -> Self {
+    pub fn new(privkey: &str, content: &str, created_at: u32, aux_rnd: [u8; 32]) -> Self {
         let mut note = Note {
             id: [0; 64],
             pubkey: [0; 64],
@@ -36,7 +36,7 @@ impl Note {
         };
         note.set_pubkey(privkey);
         note.set_id();
-        note.set_sig(privkey);
+        note.set_sig(privkey, &aux_rnd);
         note
     }
 
@@ -114,7 +114,7 @@ impl Note {
     }
 
     // todo: return signing error
-    fn set_sig(&mut self, privkey: &str) {
+    fn set_sig(&mut self, privkey: &str, aux_rnd: &[u8; 32]) {
         // figure out what size we need and why
         let mut buf = [AlignedType::zeroed(); 64];
         let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf).unwrap();
@@ -124,7 +124,7 @@ impl Note {
 
         let message = Message::from_slice(&msg).expect("32 bytes");
         let key_pair = KeyPair::from_seckey_str(&sig_obj, privkey).expect("priv key failed");
-        let sig = sig_obj.sign_schnorr_no_aux_rand(&message, &key_pair);
+        let sig = sig_obj.sign_schnorr_with_aux_rand(&message, &key_pair, aux_rnd);
         base16ct::lower::encode(sig.as_ref(), &mut self.sig).expect("encode error");
     }
 
@@ -214,7 +214,7 @@ mod tests {
 
     #[test]
     fn pubkey_test() {
-        let note = Note::new(PRIVKEY, "esptest", 1686880020);
+        let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
         let pubkey = note.pubkey;
         assert_eq!(
             pubkey,
@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn id_test() {
-        let note = Note::new(PRIVKEY, "esptest", 1686880020);
+        let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
         let id = note.id;
         assert_eq!(
             id,
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn timestamp_test() {
-        let note = Note::new(PRIVKEY, "esptest", 1686880020);
+        let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
         let hash_correct = *b"1686880020";
         let ts = note.timestamp_bytes();
         assert_eq!(ts, hash_correct);
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn hashstr_test() {
-        let note = Note::new(PRIVKEY, "esptest", 1686880020);
+        let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
         let hash_correct = br#"[0,"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf",1686880020,1,[],"esptest"]"#;
         let (hashed, len) = note.to_hash_str();
         let hashed = &hashed[..len];
@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn to_relay_test() {
         let output =  br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}]"#;
-        let note = Note::new(PRIVKEY, "esptest", 1686880020);
+        let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
         let (msg, len) = note.to_relay();
         assert_eq!(&msg[0..len], output);
     }
