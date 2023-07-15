@@ -1,5 +1,9 @@
 [package]
 name = "nostr-nostd"
+description = "A crate to assist with implementing a nostr client in a ![no_std] environment"
+documentation = "https://docs.rs/nostr-nostd"
+authors = ["Isaac Eiter"]
+license = "MIT"
 version = "0.1.0"
 edition = "2021"
 
