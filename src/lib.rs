@@ -1,5 +1,6 @@
 #![no_std]
 //! Implementation of [Nostr](https://nostr.com/) note creation for a no_std environment.
+//! Example project on an esp32 can be seen [here](https://github.com/isaac-asdf/esp32-nostr-client).
 //!
 //! # Examples
 //! ```
