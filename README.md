@@ -13,5 +13,5 @@ A demo project can be seen [here](https://github.com/isaac-asdf/esp32-nostr-clie
 
 [//]: # "badges"
 [crate-image]: https://buildstats.info/crate/nostr-nostd
-[crate-link]: https://crates.io/crates/nostr-nost
-[docs-image]: https://docs.rs/nostr-nost/badge.svg
+[crate-link]: https://crates.io/crates/nostr-nostd
+[docs-image]: https://docs.rs/nostr-nostd/badge.svg
