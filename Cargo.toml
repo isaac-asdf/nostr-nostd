@@ -1,10 +1,14 @@
 [package]
 name = "nostr-nostd"
+version = "0.1.0"
 description = "A crate to assist with implementing a nostr client in a ![no_std] environment"
 documentation = "https://docs.rs/nostr-nostd"
+repository = "https://github.com/isaac-asdf/nostr-nostd"
 authors = ["Isaac Eiter"]
+readme = "README.md"
+categories = ["cryptography", "encoding", "no-std"]
+keywords = ["crypto", "nostr"]
 license = "MIT"
-version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
