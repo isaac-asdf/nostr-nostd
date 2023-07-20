@@ -16,15 +16,28 @@ use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message};
 use sha2::{Digest, Sha256};
 
 /// Defined in [nost-protocol](https://github.com/nostr-protocol/nips/tree/master#event-kinds)
+#[derive(Copy, Clone)]
 pub enum NoteKinds {
-    ShortNote,
+    /// For most short text based notes
+    ShortNote = 1,
+    /// Ephemeral event for authentication to relay
+    Auth = 22242,
 }
 
 impl NoteKinds {
-    pub fn to_bytes(&self) -> [u8; 1] {
-        match self {
-            Self::ShortNote => *b"1",
+    pub fn serialize(&self) -> [u8; 10] {
+        // will ignore large bytes when serializing
+        let mut buffer = [255_u8; 10];
+        let mut idx = buffer.len();
+        let mut n = *self as u32;
+
+        while n > 0 && idx > 0 {
+            idx -= 1;
+            buffer[idx] = b'0' + (n % 10) as u8;
+            n /= 10;
         }
+
+        buffer
     }
 }
 
@@ -43,6 +56,22 @@ pub struct Note {
 }
 
 impl Note {
+    /// Returns a note used for authenticating to a relay
+    pub fn auth_note(privkey: &str, created_at: u32, aux_rnd: [u8; 32]) -> Self {
+        let mut note = Note {
+            id: [0; 64],
+            pubkey: [0; 64],
+            created_at,
+            kind: NoteKinds::Auth,
+            content: "".into(),
+            sig: [0; 128],
+        };
+        note.set_pubkey(privkey);
+        note.set_id();
+        note.set_sig(privkey, &aux_rnd);
+        note
+    }
+
     /// Returns a new Note
     /// # Arguments
     ///
@@ -101,9 +130,11 @@ impl Note {
         });
         hash_str[count] = 44; // 44 = ,
         count += 1;
-        self.kind.to_bytes().iter().for_each(|bs| {
-            hash_str[count] = *bs;
-            count += 1;
+        self.kind.serialize().iter().for_each(|bs| {
+            if *bs != 255 {
+                hash_str[count] = *bs;
+                count += 1;
+            }
         });
         hash_str[count] = 44; // 44 = ,
         count += 1;
@@ -184,9 +215,11 @@ impl Note {
             output[count] = *bs;
             count += 1;
         });
-        self.kind.to_bytes().iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+        self.kind.serialize().iter().for_each(|bs| {
+            if *bs != 255 {
+                output[count] = *bs;
+                count += 1;
+            }
         });
         br#","pubkey":""#.iter().for_each(|bs| {
             output[count] = *bs;
@@ -277,6 +310,14 @@ mod tests {
         let (hashed, len) = note.to_hash_str();
         let hashed = &hashed[..len];
         assert_eq!(hashed, hash_correct);
+    }
+
+    #[test]
+    fn json_test() {
+        let output =  br#"{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}"#;
+        let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
+        let (msg, len) = note.to_json();
+        assert_eq!(&msg[0..len], output);
     }
 
     #[test]
