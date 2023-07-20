@@ -51,6 +51,7 @@ pub struct Note {
     created_at: u32,
     /// Hardcoded to kind 1
     kind: NoteKinds,
+    tags: [[u8; 100]; 5],
     content: String<64>,
     sig: [u8; 128],
 }
@@ -63,6 +64,7 @@ impl Note {
             pubkey: [0; 64],
             created_at,
             kind: NoteKinds::Auth,
+            tags: [[255; 100]; 5],
             content: "".into(),
             sig: [0; 128],
         };
@@ -85,6 +87,7 @@ impl Note {
             pubkey: [0; 64],
             created_at,
             kind: NoteKinds::ShortNote,
+            tags: [[255; 100]; 5],
             content: content.into(),
             sig: [0; 128],
         };
@@ -138,7 +141,20 @@ impl Note {
         });
         hash_str[count] = 44; // 44 = ,
         count += 1;
-        br#"[],""#.iter().for_each(|bs| {
+        // tags
+        br#"["#.iter().for_each(|bs| {
+            hash_str[count] = *bs;
+            count += 1;
+        });
+        self.tags.iter().for_each(|tag| {
+            tag.iter().for_each(|bs| {
+                if *bs != 255 {
+                    hash_str[count] = *bs;
+                    count += 1;
+                }
+            })
+        });
+        br#"],""#.iter().for_each(|bs| {
             hash_str[count] = *bs;
             count += 1;
         });
@@ -237,7 +253,19 @@ impl Note {
             output[count] = *bs;
             count += 1;
         });
-        br#"","tags":[]}"#.iter().for_each(|bs| {
+        br#"","tags":["#.iter().for_each(|bs| {
+            output[count] = *bs;
+            count += 1;
+        });
+        self.tags.iter().for_each(|tag| {
+            tag.iter().for_each(|bs| {
+                if *bs != 255 {
+                    output[count] = *bs;
+                    count += 1;
+                }
+            })
+        });
+        br#"]}"#.iter().for_each(|bs| {
             output[count] = *bs;
             count += 1;
         });
