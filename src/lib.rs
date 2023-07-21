@@ -6,10 +6,10 @@
 //! ```
 //! use nostr_nostd::Note;
 //! const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
-//! let mut note = Note::new();
-//! note.content("esptest");
-//! note.created_at(1686880020);
-//! let note = note.build(PRIVKEY, [0; 32]);
+//! let mut note = Note::new()
+//!     .content("esptest")
+//!     .created_at(1686880020)
+//!     .build(PRIVKEY, [0; 32]);
 //! let (msg, len) = note.serialize_to_relay();
 //! let msg = &msg[0..len];
 //! ```
@@ -59,14 +59,17 @@ pub struct Note {
     sig: [u8; 128],
 }
 
+/// TODO: add comments
+/// TODO: use typestate, generics to enforce order?
 pub struct NoteBuilder(Note);
 
 impl NoteBuilder {
-    pub fn set_kind(&mut self, kind: NoteKinds) {
+    pub fn set_kind(mut self, kind: NoteKinds) -> Self {
         self.0.kind = kind;
+        self
     }
 
-    pub fn set_tag(&mut self, tag: [u8; 100]) {
+    pub fn set_tag(mut self, tag: [u8; 100]) -> Self {
         if let Some(_tags) = self.0.tags {
             // do nothing
         } else {
@@ -74,20 +77,23 @@ impl NoteBuilder {
             tags[0] = tag;
             self.0.tags = Some(tags);
         }
+        self
     }
 
-    pub fn created_at(&mut self, created_at: u32) {
-        self.0.created_at = created_at;
-    }
-
-    pub fn content(&mut self, content: &str) {
+    pub fn content(mut self, content: &str) -> Self {
         self.0.content = Some(content.into());
+        self
     }
 
-    pub fn build(mut self, privkey: &str, aux_rnd: [u8; 32]) -> Note {
+    pub fn created_at(mut self, created_at: u32) -> Self {
+        self.0.created_at = created_at;
+        self
+    }
+
+    pub fn build(mut self, privkey: &str, aux_rnd: &[u8; 32]) -> Note {
         self.0.set_pubkey(privkey);
         self.0.set_id();
-        self.0.set_sig(privkey, &aux_rnd);
+        self.0.set_sig(privkey, aux_rnd);
         self.0
     }
 }
@@ -326,10 +332,10 @@ mod tests {
     const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
 
     fn get_note() -> Note {
-        let mut note = Note::new();
-        note.content("esptest");
-        note.created_at(1686880020);
-        note.build(PRIVKEY, [0; 32])
+        Note::new()
+            .content("esptest")
+            .created_at(1686880020)
+            .build(PRIVKEY, &[0; 32])
     }
 
     #[test]
