@@ -62,39 +62,95 @@ pub struct Note {
 pub struct TimeSet;
 pub struct TimeNotSet;
 
-pub struct NoTag;
-pub struct TagSet;
+pub trait Counter {
+    type Next: TagCount;
+    // Add a generic parameter for the return type, bounded by TagCount
+    fn next(self) -> Self::Next;
+}
+pub trait TagCount {}
+pub struct ZeroTags;
+pub struct OneTag;
+pub struct TwoTags;
+pub struct ThreeTags;
+pub struct FourTags;
+pub struct FiveTags;
 
-pub struct BuildStatus<A, B, C, D, E, F> {
+impl TagCount for ZeroTags {}
+impl TagCount for OneTag {}
+impl TagCount for TwoTags {}
+impl TagCount for ThreeTags {}
+impl TagCount for FourTags {}
+impl TagCount for FiveTags {}
+
+impl Counter for ZeroTags {
+    type Next = OneTag;
+    // Implement the next method to return a new MyType instance
+    fn next(self) -> OneTag {
+        OneTag
+    }
+}
+impl Counter for OneTag {
+    type Next = TwoTags;
+    fn next(self) -> TwoTags {
+        TwoTags
+    }
+}
+impl Counter for TwoTags {
+    type Next = ThreeTags;
+    fn next(self) -> ThreeTags {
+        ThreeTags
+    }
+}
+impl Counter for ThreeTags {
+    type Next = FourTags;
+    fn next(self) -> FourTags {
+        FourTags
+    }
+}
+impl Counter for FourTags {
+    type Next = FiveTags;
+    fn next(self) -> FiveTags {
+        FiveTags
+    }
+}
+
+pub struct BuildStatus<A, B> {
     time: A,
-    tag1: B,
-    tag2: C,
-    tag3: D,
-    tag4: E,
-    tag5: F,
+    tags: B,
 }
 
 /// TODO: add comments
 /// TODO: use typestate, generics to enforce order?
-pub struct NoteBuilder<A, B, C, D, E, F> {
-    build_status: BuildStatus<A, B, C, D, E, F>,
+pub struct NoteBuilder<A, B> {
+    build_status: BuildStatus<A, B>,
     note: Note,
 }
 
-impl<A, B, C, D, E, F> NoteBuilder<A, B, C, D, E, F> {
+impl<A, T, NextCounter> NoteBuilder<A, T>
+where
+    T: Counter<Next = NextCounter>,
+    NextCounter: TagCount,
+{
+    pub fn set_tag(mut self, tag: [u8; 100]) -> NoteBuilder<A, NextCounter> {
+        let mut tags = [[255_u8; 100]; 5];
+        tags[0] = tag;
+        self.note.tags = Some(tags);
+
+        let next_tags = self.build_status.tags.next();
+
+        NoteBuilder {
+            build_status: BuildStatus {
+                time: self.build_status.time,
+                tags: next_tags,
+            },
+            note: self.note,
+        }
+    }
+}
+
+impl<A, B> NoteBuilder<A, B> {
     pub fn set_kind(mut self, kind: NoteKinds) -> Self {
         self.note.kind = kind;
-        self
-    }
-
-    pub fn set_tag(mut self, tag: [u8; 100]) -> Self {
-        if let Some(_tags) = self.note.tags {
-            // do nothing
-        } else {
-            let mut tags = [[255_u8; 100]; 5];
-            tags[0] = tag;
-            self.note.tags = Some(tags);
-        }
         self
     }
 
@@ -104,24 +160,20 @@ impl<A, B, C, D, E, F> NoteBuilder<A, B, C, D, E, F> {
     }
 }
 
-impl<A, B, C, D, E> NoteBuilder<TimeNotSet, A, B, C, D, E> {
-    pub fn created_at(mut self, created_at: u32) -> NoteBuilder<TimeSet, A, B, C, D, E> {
+impl<A> NoteBuilder<TimeNotSet, A> {
+    pub fn created_at(mut self, created_at: u32) -> NoteBuilder<TimeSet, A> {
         self.note.created_at = created_at;
         NoteBuilder {
             build_status: BuildStatus {
                 time: TimeSet,
-                tag1: self.build_status.tag1,
-                tag2: self.build_status.tag2,
-                tag3: self.build_status.tag3,
-                tag4: self.build_status.tag4,
-                tag5: self.build_status.tag5,
+                tags: self.build_status.tags,
             },
             note: self.note,
         }
     }
 }
 
-impl<A, B, C, D, E> NoteBuilder<TimeSet, A, B, C, D, E> {
+impl<A> NoteBuilder<TimeSet, A> {
     pub fn build(mut self, privkey: &str, aux_rnd: &[u8; 32]) -> Note {
         self.note.set_pubkey(privkey);
         self.note.set_id();
@@ -138,15 +190,11 @@ impl Note {
     /// * `aux_rnd` - MUST be unique for each note created to avoid leaking private key
     /// * `created_at` - Unix timestamp for note creation time
     ///
-    pub fn new() -> NoteBuilder<TimeNotSet, NoTag, NoTag, NoTag, NoTag, NoTag> {
+    pub fn new() -> NoteBuilder<TimeNotSet, ZeroTags> {
         NoteBuilder {
             build_status: BuildStatus {
                 time: TimeNotSet,
-                tag1: NoTag,
-                tag2: NoTag,
-                tag3: NoTag,
-                tag4: NoTag,
-                tag5: NoTag,
+                tags: ZeroTags,
             },
             note: Note {
                 id: [0; 64],
@@ -377,6 +425,11 @@ mod tests {
         Note::new()
             .content("esptest")
             .created_at(1686880020)
+            .set_tag([0; 100])
+            .set_tag([0; 100])
+            .set_tag([0; 100])
+            .set_tag([0; 100])
+            .set_tag([0; 100])
             .build(PRIVKEY, &[0; 32])
     }
 
