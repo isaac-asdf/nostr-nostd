@@ -59,42 +59,55 @@ pub struct Note {
     sig: [u8; 128],
 }
 
+pub struct TimeSet;
+pub struct TimeNotSet;
+
 /// TODO: add comments
 /// TODO: use typestate, generics to enforce order?
-pub struct NoteBuilder(Note);
+pub struct NoteBuilder<T> {
+    timed: T,
+    note: Note,
+}
 
-impl NoteBuilder {
+impl<T> NoteBuilder<T> {
     pub fn set_kind(mut self, kind: NoteKinds) -> Self {
-        self.0.kind = kind;
+        self.note.kind = kind;
         self
     }
 
     pub fn set_tag(mut self, tag: [u8; 100]) -> Self {
-        if let Some(_tags) = self.0.tags {
+        if let Some(_tags) = self.note.tags {
             // do nothing
         } else {
             let mut tags = [[255_u8; 100]; 5];
             tags[0] = tag;
-            self.0.tags = Some(tags);
+            self.note.tags = Some(tags);
         }
         self
     }
 
     pub fn content(mut self, content: &str) -> Self {
-        self.0.content = Some(content.into());
+        self.note.content = Some(content.into());
         self
     }
+}
 
-    pub fn created_at(mut self, created_at: u32) -> Self {
-        self.0.created_at = created_at;
-        self
+impl NoteBuilder<TimeNotSet> {
+    pub fn created_at(mut self, created_at: u32) -> NoteBuilder<TimeSet> {
+        self.note.created_at = created_at;
+        NoteBuilder {
+            timed: TimeSet,
+            note: self.note,
+        }
     }
+}
 
+impl NoteBuilder<TimeSet> {
     pub fn build(mut self, privkey: &str, aux_rnd: &[u8; 32]) -> Note {
-        self.0.set_pubkey(privkey);
-        self.0.set_id();
-        self.0.set_sig(privkey, aux_rnd);
-        self.0
+        self.note.set_pubkey(privkey);
+        self.note.set_id();
+        self.note.set_sig(privkey, aux_rnd);
+        self.note
     }
 }
 
@@ -106,16 +119,19 @@ impl Note {
     /// * `aux_rnd` - MUST be unique for each note created to avoid leaking private key
     /// * `created_at` - Unix timestamp for note creation time
     ///
-    pub fn new() -> NoteBuilder {
-        NoteBuilder(Note {
-            id: [0; 64],
-            pubkey: [0; 64],
-            created_at: 0,
-            kind: NoteKinds::ShortNote,
-            tags: None,
-            content: None,
-            sig: [0; 128],
-        })
+    pub fn new() -> NoteBuilder<TimeNotSet> {
+        NoteBuilder {
+            timed: TimeNotSet,
+            note: Note {
+                id: [0; 64],
+                pubkey: [0; 64],
+                created_at: 0,
+                kind: NoteKinds::ShortNote,
+                tags: None,
+                content: None,
+                sig: [0; 128],
+            },
+        }
     }
 
     fn timestamp_bytes(&self) -> [u8; 10] {
