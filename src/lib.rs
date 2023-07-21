@@ -9,8 +9,8 @@
 //! let mut note = Note::new();
 //! note.content("esptest");
 //! note.created_at(1686880020);
-//! let final_note = note.build(PRIVKEY, [0; 32]);
-//! let (msg, len) = final_note.serialize_to_relay();
+//! let note = note.build(PRIVKEY, [0; 32]);
+//! let (msg, len) = note.serialize_to_relay();
 //! let msg = &msg[0..len];
 //! ```
 //!
@@ -59,11 +59,40 @@ pub struct Note {
     sig: [u8; 128],
 }
 
-impl Note {
+pub struct NoteBuilder(Note);
+
+impl NoteBuilder {
     pub fn set_kind(&mut self, kind: NoteKinds) {
-        self.kind = kind;
+        self.0.kind = kind;
     }
 
+    pub fn set_tag(&mut self, tag: [u8; 100]) {
+        if let Some(_tags) = self.0.tags {
+            // do nothing
+        } else {
+            let mut tags = [[255_u8; 100]; 5];
+            tags[0] = tag;
+            self.0.tags = Some(tags);
+        }
+    }
+
+    pub fn created_at(&mut self, created_at: u32) {
+        self.0.created_at = created_at;
+    }
+
+    pub fn content(&mut self, content: &str) {
+        self.0.content = Some(content.into());
+    }
+
+    pub fn build(mut self, privkey: &str, aux_rnd: [u8; 32]) -> Note {
+        self.0.set_pubkey(privkey);
+        self.0.set_id();
+        self.0.set_sig(privkey, &aux_rnd);
+        self.0
+    }
+}
+
+impl Note {
     /// Returns a new Note
     /// # Arguments
     ///
@@ -71,8 +100,8 @@ impl Note {
     /// * `aux_rnd` - MUST be unique for each note created to avoid leaking private key
     /// * `created_at` - Unix timestamp for note creation time
     ///
-    pub fn new() -> Self {
-        Note {
+    pub fn new() -> NoteBuilder {
+        NoteBuilder(Note {
             id: [0; 64],
             pubkey: [0; 64],
             created_at: 0,
@@ -80,25 +109,7 @@ impl Note {
             tags: None,
             content: None,
             sig: [0; 128],
-        }
-    }
-
-    pub fn set_tag(&mut self, tag: [u8; 100]) {
-        if let Some(tags) = self.tags {
-            // do nothing
-        } else {
-            let mut tags = [[255_u8; 100]; 5];
-            tags[0] = tag;
-            self.tags = Some(tags);
-        }
-    }
-
-    pub fn created_at(&mut self, created_at: u32) {
-        self.created_at = created_at;
-    }
-
-    pub fn content(&mut self, content: &str) {
-        self.content = Some(content.into());
+        })
     }
 
     fn timestamp_bytes(&self) -> [u8; 10] {
@@ -284,12 +295,6 @@ impl Note {
         (output, count)
     }
 
-    pub fn build(mut self, privkey: &str, aux_rnd: [u8; 32]) -> Self {
-        self.set_pubkey(privkey);
-        self.set_id();
-        self.set_sig(privkey, &aux_rnd);
-        self
-    }
     /// Serializes the note so it can sent to a relay
     /// # Returns
     ///
