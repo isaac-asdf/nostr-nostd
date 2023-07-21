@@ -6,8 +6,11 @@
 //! ```
 //! use nostr_nostd::Note;
 //! const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
-//! let note = Note::new(PRIVKEY, "test note", 1686880020, [0; 32]);
-//! let (msg, len) = note.serialize_to_relay();
+//! let mut note = Note::new();
+//! note.content("esptest");
+//! note.created_at(1686880020);
+//! let final_note = note.build(PRIVKEY, [0; 32]);
+//! let (msg, len) = final_note.serialize_to_relay();
 //! let msg = &msg[0..len];
 //! ```
 //!
@@ -57,21 +60,8 @@ pub struct Note {
 }
 
 impl Note {
-    /// Returns a note used for authenticating to a relay
-    pub fn auth_note(privkey: &str, created_at: u32, aux_rnd: [u8; 32]) -> Self {
-        let mut note = Note {
-            id: [0; 64],
-            pubkey: [0; 64],
-            created_at,
-            kind: NoteKinds::Auth,
-            tags: Some([[255; 100]; 5]),
-            content: Some("".into()),
-            sig: [0; 128],
-        };
-        note.set_pubkey(privkey);
-        note.set_id();
-        note.set_sig(privkey, &aux_rnd);
-        note
+    pub fn set_kind(&mut self, kind: NoteKinds) {
+        self.kind = kind;
     }
 
     /// Returns a new Note
@@ -81,23 +71,33 @@ impl Note {
     /// * `aux_rnd` - MUST be unique for each note created to avoid leaking private key
     /// * `created_at` - Unix timestamp for note creation time
     ///
-    pub fn new(privkey: &str, content: &str, created_at: u32, aux_rnd: [u8; 32]) -> Self {
-        let mut note = Note {
+    pub fn new() -> Self {
+        Note {
             id: [0; 64],
             pubkey: [0; 64],
-            created_at,
+            created_at: 0,
             kind: NoteKinds::ShortNote,
-            tags: Some([[255; 100]; 5]),
-            content: Some(content.into()),
+            tags: None,
+            content: None,
             sig: [0; 128],
-        };
-        note.set_pubkey(privkey);
-        note.set_id();
-        note.set_sig(privkey, &aux_rnd);
-        note
+        }
     }
 
-    fn set_content(&mut self, content: &str) {
+    pub fn set_tag(&mut self, tag: [u8; 100]) {
+        if let Some(tags) = self.tags {
+            // do nothing
+        } else {
+            let mut tags = [[255_u8; 100]; 5];
+            tags[0] = tag;
+            self.tags = Some(tags);
+        }
+    }
+
+    pub fn created_at(&mut self, created_at: u32) {
+        self.created_at = created_at;
+    }
+
+    pub fn content(&mut self, content: &str) {
         self.content = Some(content.into());
     }
 
@@ -284,12 +284,18 @@ impl Note {
         (output, count)
     }
 
+    pub fn build(mut self, privkey: &str, aux_rnd: [u8; 32]) -> Self {
+        self.set_pubkey(privkey);
+        self.set_id();
+        self.set_sig(privkey, &aux_rnd);
+        self
+    }
     /// Serializes the note so it can sent to a relay
     /// # Returns
     ///
     /// * `[u8; 1000]` - lower case hex encoded byte array of note, to be sent to relay
     /// * `usize` - length of the buffer used
-    pub fn serialize_to_relay(&self) -> ([u8; 1000], usize) {
+    pub fn serialize_to_relay(self) -> ([u8; 1000], usize) {
         let mut output = [0; 1000];
         let mut count = 0;
         // fill in output
@@ -314,6 +320,13 @@ mod tests {
     use super::*;
     const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
 
+    fn get_note() -> Note {
+        let mut note = Note::new();
+        note.content("esptest");
+        note.created_at(1686880020);
+        note.build(PRIVKEY, [0; 32])
+    }
+
     #[test]
     fn builder_test() {
         // do stuff
@@ -321,7 +334,7 @@ mod tests {
 
     #[test]
     fn pubkey_test() {
-        let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
+        let note = get_note();
         let pubkey = note.pubkey;
         assert_eq!(
             pubkey,
@@ -331,7 +344,7 @@ mod tests {
 
     #[test]
     fn id_test() {
-        let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
+        let note = get_note();
         let id = note.id;
         assert_eq!(
             id,
@@ -341,7 +354,7 @@ mod tests {
 
     #[test]
     fn timestamp_test() {
-        let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
+        let note = get_note();
         let hash_correct = *b"1686880020";
         let ts = note.timestamp_bytes();
         assert_eq!(ts, hash_correct);
@@ -349,7 +362,7 @@ mod tests {
 
     #[test]
     fn hashstr_test() {
-        let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
+        let note = get_note();
         let hash_correct = br#"[0,"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf",1686880020,1,[],"esptest"]"#;
         let (hashed, len) = note.to_hash_str();
         let hashed = &hashed[..len];
@@ -359,7 +372,7 @@ mod tests {
     #[test]
     fn json_test() {
         let output =  br#"{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}"#;
-        let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
+        let note = get_note();
         let (msg, len) = note.to_json();
         assert_eq!(&msg[0..len], output);
     }
@@ -367,7 +380,7 @@ mod tests {
     #[test]
     fn serialize_to_relay_test() {
         let output =  br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}]"#;
-        let note = Note::new(PRIVKEY, "esptest", 1686880020, [0; 32]);
+        let note = get_note();
         let (msg, len) = note.serialize_to_relay();
         assert_eq!(&msg[0..len], output);
     }
