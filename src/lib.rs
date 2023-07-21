@@ -62,14 +62,26 @@ pub struct Note {
 pub struct TimeSet;
 pub struct TimeNotSet;
 
+pub struct NoTag;
+pub struct TagSet;
+
+pub struct BuildStatus<A, B, C, D, E, F> {
+    time: A,
+    tag1: B,
+    tag2: C,
+    tag3: D,
+    tag4: E,
+    tag5: F,
+}
+
 /// TODO: add comments
 /// TODO: use typestate, generics to enforce order?
-pub struct NoteBuilder<T> {
-    timed: T,
+pub struct NoteBuilder<A, B, C, D, E, F> {
+    build_status: BuildStatus<A, B, C, D, E, F>,
     note: Note,
 }
 
-impl<T> NoteBuilder<T> {
+impl<A, B, C, D, E, F> NoteBuilder<A, B, C, D, E, F> {
     pub fn set_kind(mut self, kind: NoteKinds) -> Self {
         self.note.kind = kind;
         self
@@ -92,17 +104,24 @@ impl<T> NoteBuilder<T> {
     }
 }
 
-impl NoteBuilder<TimeNotSet> {
-    pub fn created_at(mut self, created_at: u32) -> NoteBuilder<TimeSet> {
+impl<A, B, C, D, E> NoteBuilder<TimeNotSet, A, B, C, D, E> {
+    pub fn created_at(mut self, created_at: u32) -> NoteBuilder<TimeSet, A, B, C, D, E> {
         self.note.created_at = created_at;
         NoteBuilder {
-            timed: TimeSet,
+            build_status: BuildStatus {
+                time: TimeSet,
+                tag1: self.build_status.tag1,
+                tag2: self.build_status.tag2,
+                tag3: self.build_status.tag3,
+                tag4: self.build_status.tag4,
+                tag5: self.build_status.tag5,
+            },
             note: self.note,
         }
     }
 }
 
-impl NoteBuilder<TimeSet> {
+impl<A, B, C, D, E> NoteBuilder<TimeSet, A, B, C, D, E> {
     pub fn build(mut self, privkey: &str, aux_rnd: &[u8; 32]) -> Note {
         self.note.set_pubkey(privkey);
         self.note.set_id();
@@ -119,9 +138,16 @@ impl Note {
     /// * `aux_rnd` - MUST be unique for each note created to avoid leaking private key
     /// * `created_at` - Unix timestamp for note creation time
     ///
-    pub fn new() -> NoteBuilder<TimeNotSet> {
+    pub fn new() -> NoteBuilder<TimeNotSet, NoTag, NoTag, NoTag, NoTag, NoTag> {
         NoteBuilder {
-            timed: TimeNotSet,
+            build_status: BuildStatus {
+                time: TimeNotSet,
+                tag1: NoTag,
+                tag2: NoTag,
+                tag3: NoTag,
+                tag4: NoTag,
+                tag5: NoTag,
+            },
             note: Note {
                 id: [0; 64],
                 pubkey: [0; 64],
