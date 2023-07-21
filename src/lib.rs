@@ -51,8 +51,8 @@ pub struct Note {
     created_at: u32,
     /// Hardcoded to kind 1
     kind: NoteKinds,
-    tags: [[u8; 100]; 5],
-    content: String<64>,
+    tags: Option<[[u8; 100]; 5]>,
+    content: Option<String<64>>,
     sig: [u8; 128],
 }
 
@@ -64,8 +64,8 @@ impl Note {
             pubkey: [0; 64],
             created_at,
             kind: NoteKinds::Auth,
-            tags: [[255; 100]; 5],
-            content: "".into(),
+            tags: Some([[255; 100]; 5]),
+            content: Some("".into()),
             sig: [0; 128],
         };
         note.set_pubkey(privkey);
@@ -87,14 +87,18 @@ impl Note {
             pubkey: [0; 64],
             created_at,
             kind: NoteKinds::ShortNote,
-            tags: [[255; 100]; 5],
-            content: content.into(),
+            tags: Some([[255; 100]; 5]),
+            content: Some(content.into()),
             sig: [0; 128],
         };
         note.set_pubkey(privkey);
         note.set_id();
         note.set_sig(privkey, &aux_rnd);
         note
+    }
+
+    fn set_content(&mut self, content: &str) {
+        self.content = Some(content.into());
     }
 
     fn timestamp_bytes(&self) -> [u8; 10] {
@@ -146,22 +150,26 @@ impl Note {
             hash_str[count] = *bs;
             count += 1;
         });
-        self.tags.iter().for_each(|tag| {
-            tag.iter().for_each(|bs| {
-                if *bs != 255 {
-                    hash_str[count] = *bs;
-                    count += 1;
-                }
-            })
-        });
+        if let Some(tags) = self.tags {
+            tags.iter().for_each(|tag| {
+                tag.iter().for_each(|bs| {
+                    if *bs != 255 {
+                        hash_str[count] = *bs;
+                        count += 1;
+                    }
+                })
+            });
+        }
         br#"],""#.iter().for_each(|bs| {
             hash_str[count] = *bs;
             count += 1;
         });
-        self.content.as_bytes().iter().for_each(|bs| {
-            hash_str[count] = *bs;
-            count += 1;
-        });
+        if let Some(content) = &self.content {
+            content.as_bytes().iter().for_each(|bs| {
+                hash_str[count] = *bs;
+                count += 1;
+            });
+        }
         br#""]"#.iter().for_each(|bs| {
             hash_str[count] = *bs;
             count += 1;
@@ -185,7 +193,6 @@ impl Note {
         base16ct::lower::encode(&results, &mut self.id).expect("encode error");
     }
 
-    // todo: return signing error
     fn set_sig(&mut self, privkey: &str, aux_rnd: &[u8; 32]) {
         // figure out what size we need and why
         let mut buf = [AlignedType::zeroed(); 64];
@@ -207,10 +214,12 @@ impl Note {
             output[count] = *bs;
             count += 1;
         });
-        self.content.as_bytes().iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
-        });
+        if let Some(content) = &self.content {
+            content.as_bytes().iter().for_each(|bs| {
+                output[count] = *bs;
+                count += 1;
+            });
+        }
         br#"","created_at":"#.iter().for_each(|bs| {
             output[count] = *bs;
             count += 1;
@@ -257,14 +266,16 @@ impl Note {
             output[count] = *bs;
             count += 1;
         });
-        self.tags.iter().for_each(|tag| {
-            tag.iter().for_each(|bs| {
-                if *bs != 255 {
-                    output[count] = *bs;
-                    count += 1;
-                }
-            })
-        });
+        if let Some(tags) = self.tags {
+            tags.iter().for_each(|tag| {
+                tag.iter().for_each(|bs| {
+                    if *bs != 255 {
+                        output[count] = *bs;
+                        count += 1;
+                    }
+                })
+            });
+        }
         br#"]}"#.iter().for_each(|bs| {
             output[count] = *bs;
             count += 1;
@@ -302,6 +313,11 @@ impl Note {
 mod tests {
     use super::*;
     const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
+
+    #[test]
+    fn builder_test() {
+        // do stuff
+    }
 
     #[test]
     fn pubkey_test() {
