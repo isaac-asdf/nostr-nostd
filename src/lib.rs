@@ -62,7 +62,7 @@ pub struct Note {
 pub struct TimeSet;
 pub struct TimeNotSet;
 
-pub trait Counter {
+pub trait AddTag {
     type Next: TagCount;
     // Add a generic parameter for the return type, bounded by TagCount
     fn next(self) -> Self::Next;
@@ -82,32 +82,32 @@ impl TagCount for ThreeTags {}
 impl TagCount for FourTags {}
 impl TagCount for FiveTags {}
 
-impl Counter for ZeroTags {
+impl AddTag for ZeroTags {
     type Next = OneTag;
     // Implement the next method to return a new MyType instance
     fn next(self) -> OneTag {
         OneTag
     }
 }
-impl Counter for OneTag {
+impl AddTag for OneTag {
     type Next = TwoTags;
     fn next(self) -> TwoTags {
         TwoTags
     }
 }
-impl Counter for TwoTags {
+impl AddTag for TwoTags {
     type Next = ThreeTags;
     fn next(self) -> ThreeTags {
         ThreeTags
     }
 }
-impl Counter for ThreeTags {
+impl AddTag for ThreeTags {
     type Next = FourTags;
     fn next(self) -> FourTags {
         FourTags
     }
 }
-impl Counter for FourTags {
+impl AddTag for FourTags {
     type Next = FiveTags;
     fn next(self) -> FiveTags {
         FiveTags
@@ -126,12 +126,12 @@ pub struct NoteBuilder<A, B> {
     note: Note,
 }
 
-impl<A, T, NextCounter> NoteBuilder<A, T>
+impl<A, T, NextAddTag> NoteBuilder<A, T>
 where
-    T: Counter<Next = NextCounter>,
-    NextCounter: TagCount,
+    T: AddTag<Next = NextAddTag>,
+    NextAddTag: TagCount,
 {
-    pub fn set_tag(mut self, tag: [u8; 100]) -> NoteBuilder<A, NextCounter> {
+    pub fn set_tag(mut self, tag: [u8; 100]) -> NoteBuilder<A, NextAddTag> {
         let mut tags = [[255_u8; 100]; 5];
         tags[0] = tag;
         self.note.tags = Some(tags);
@@ -425,11 +425,6 @@ mod tests {
         Note::new()
             .content("esptest")
             .created_at(1686880020)
-            .set_tag([0; 100])
-            .set_tag([0; 100])
-            .set_tag([0; 100])
-            .set_tag([0; 100])
-            .set_tag([0; 100])
             .build(PRIVKEY, &[0; 32])
     }
 
