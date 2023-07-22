@@ -130,7 +130,7 @@ where
     T: AddTag<Next = NextAddTag>,
     NextAddTag: TagCount,
 {
-    pub fn set_tag(mut self, tag: [u8; 100]) -> NoteBuilder<A, NextAddTag> {
+    pub fn add_tag(mut self, tag: [u8; 100]) -> NoteBuilder<A, NextAddTag> {
         let next_tags = self.build_status.tags.next();
         self.note
             .tags
