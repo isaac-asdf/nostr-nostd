@@ -9,12 +9,12 @@
 //! let mut note = Note::new()
 //!     .content("esptest")
 //!     .created_at(1686880020)
-//!     .build(PRIVKEY, [0; 32]);
+//!     .build(PRIVKEY, &[0; 32]);
 //! let (msg, len) = note.serialize_to_relay();
 //! let msg = &msg[0..len];
 //! ```
 //!
-use heapless::String;
+use heapless::{String, Vec};
 use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message};
 use sha2::{Digest, Sha256};
 
@@ -54,7 +54,7 @@ pub struct Note {
     created_at: u32,
     /// Hardcoded to kind 1
     kind: NoteKinds,
-    tags: Option<[[u8; 100]; 5]>,
+    tags: Vec<[u8; 100], 5>,
     content: Option<String<64>>,
     sig: [u8; 128],
 }
@@ -120,7 +120,6 @@ pub struct BuildStatus<A, B> {
 }
 
 /// TODO: add comments
-/// TODO: use typestate, generics to enforce order?
 pub struct NoteBuilder<A, B> {
     build_status: BuildStatus<A, B>,
     note: Note,
@@ -133,10 +132,12 @@ where
 {
     pub fn set_tag(mut self, tag: [u8; 100]) -> NoteBuilder<A, NextAddTag> {
         let mut tags = [[255_u8; 100]; 5];
-        tags[0] = tag;
-        self.note.tags = Some(tags);
 
         let next_tags = self.build_status.tags.next();
+        self.note
+            .tags
+            .push(tag)
+            .expect("AddTag impl error, should be impossible to err here");
 
         NoteBuilder {
             build_status: BuildStatus {
@@ -201,7 +202,7 @@ impl Note {
                 pubkey: [0; 64],
                 created_at: 0,
                 kind: NoteKinds::ShortNote,
-                tags: None,
+                tags: Vec::new(),
                 content: None,
                 sig: [0; 128],
             },
@@ -257,16 +258,14 @@ impl Note {
             hash_str[count] = *bs;
             count += 1;
         });
-        if let Some(tags) = self.tags {
-            tags.iter().for_each(|tag| {
-                tag.iter().for_each(|bs| {
-                    if *bs != 255 {
-                        hash_str[count] = *bs;
-                        count += 1;
-                    }
-                })
-            });
-        }
+        self.tags.iter().for_each(|tag| {
+            tag.iter().for_each(|bs| {
+                if *bs != 255 {
+                    hash_str[count] = *bs;
+                    count += 1;
+                }
+            })
+        });
         br#"],""#.iter().for_each(|bs| {
             hash_str[count] = *bs;
             count += 1;
@@ -373,16 +372,14 @@ impl Note {
             output[count] = *bs;
             count += 1;
         });
-        if let Some(tags) = self.tags {
-            tags.iter().for_each(|tag| {
-                tag.iter().for_each(|bs| {
-                    if *bs != 255 {
-                        output[count] = *bs;
-                        count += 1;
-                    }
-                })
-            });
-        }
+        self.tags.iter().for_each(|tag| {
+            tag.iter().for_each(|bs| {
+                if *bs != 255 {
+                    output[count] = *bs;
+                    count += 1;
+                }
+            })
+        });
         br#"]}"#.iter().for_each(|bs| {
             output[count] = *bs;
             count += 1;
