@@ -131,8 +131,6 @@ where
     NextAddTag: TagCount,
 {
     pub fn set_tag(mut self, tag: [u8; 100]) -> NoteBuilder<A, NextAddTag> {
-        let mut tags = [[255_u8; 100]; 5];
-
         let next_tags = self.build_status.tags.next();
         self.note
             .tags
