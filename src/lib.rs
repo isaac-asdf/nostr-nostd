@@ -1,17 +1,19 @@
 #![no_std]
-//! Implementation of [Nostr](https://nostr.com/) note creation for a no_std environment.
-//! Example project on an esp32 can be seen [here](https://github.com/isaac-asdf/esp32-nostr-client).
+//! Implementation of [Nostr](https://nostr.com/) note creation for a #![no_std] environment.
+//! An example project using an esp32 can be seen [here](https://github.com/isaac-asdf/esp32-nostr-client).
 //!
 //! # Example
 //! ```
 //! use nostr_nostd::{Note, String};
 //! const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
-//! let content: String<64> = String::from("esptest");
-//! // aux_rand should be generate from a random number generator
+//! let content: String<100> = String::from("Hello, World!");
+//! let tag: String<64> = String::from(r#"["relay", "wss://relay.example.com/"]"#);
+//! // aux_rand should be generated from a random number generator
 //! // required to keep PRIVKEY secure with Schnorr signatures
 //! let aux_rand = [0; 32];
 //! let note = Note::new()
 //!     .content(content)
+//!     .add_tag(tag)
 //!     .created_at(1686880020)
 //!     .build(PRIVKEY, aux_rand);
 //! let msg = note.serialize_to_relay();
@@ -21,7 +23,7 @@ pub use heapless::{String, Vec};
 use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message};
 use sha2::{Digest, Sha256};
 
-/// Defined in [nost-protocol](https://github.com/nostr-protocol/nips/tree/master#event-kinds)
+/// Defined by [nostr protocol](https://github.com/nostr-protocol/nips/tree/master#event-kinds)
 #[derive(Copy, Clone)]
 pub enum NoteKinds {
     /// For most short text based notes
@@ -58,11 +60,13 @@ pub struct Note {
     /// Default to kind 1
     kind: NoteKinds,
     tags: Vec<String<64>, 5>,
-    content: Option<String<64>>,
+    content: Option<String<100>>,
     sig: [u8; 128],
 }
 
+/// NoteBuilder has had `.created_at()` called and is ready for `.build()`
 pub struct TimeSet;
+/// NoteBuilder is waiting for `.created_at()` prior to `.build()`
 pub struct TimeNotSet;
 
 pub trait AddTag {
@@ -70,14 +74,20 @@ pub trait AddTag {
     // Add a generic parameter for the return type, bounded by TagCount
     fn next(self) -> Self::Next;
 }
+/// Number of tags added
 pub trait TagCount {}
+/// No tags have been added
 pub struct ZeroTags;
+/// One tag has been added
 pub struct OneTag;
+/// Two tags have been added
 pub struct TwoTags;
+/// Three tags have been added
 pub struct ThreeTags;
+/// Four tags have been added
 pub struct FourTags;
+/// Five tags have been added
 pub struct FiveTags;
-pub struct SixTags;
 
 impl TagCount for ZeroTags {}
 impl TagCount for OneTag {}
@@ -118,12 +128,13 @@ impl AddTag for FourTags {
     }
 }
 
+/// Used to track the addition of the time created and the number of tags added
 pub struct BuildStatus<A, B> {
     time: A,
     tags: B,
 }
 
-/// TODO: add comments
+/// Used to fill in the fields of a Note.
 pub struct NoteBuilder<A, B> {
     build_status: BuildStatus<A, B>,
     note: Note,
@@ -134,13 +145,15 @@ where
     T: AddTag<Next = NextAddTag>,
     NextAddTag: TagCount,
 {
-    /// Adds a new tag to the note. The maximum number of tags currently allowed is 5, and that is checked by the compiler.
+    /// Adds a new tag to the note.
+    /// The maximum number of tags currently allowed is 5.
+    /// Attempts to add too many tags will be a compilation error.
     ///
     /// # Example
     /// ```
     /// use nostr_nostd::{Note, String};
     /// const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
-    /// let content: String<64> = String::from("i have tags");
+    /// let content: String<100> = String::from("i have tags");
     /// let tag: String<64> = String::from(r#"["relay", "wss://relay.example.com/"]"#);
     /// let note = Note::new()
     ///     .content(content)
@@ -174,7 +187,7 @@ impl<A, B> NoteBuilder<A, B> {
     }
 
     /// Sets the "content" field of Note
-    pub fn content(mut self, content: String<64>) -> Self {
+    pub fn content(mut self, content: String<100>) -> Self {
         self.note.content = Some(content);
         self
     }
@@ -336,6 +349,7 @@ impl Note {
     fn to_json(&self) -> Vec<u8, 1000> {
         let mut output: Vec<u8, 1000> = Vec::new();
         br#"{"content":""#.iter().for_each(|bs| {
+            // handle result?
             output.push(*bs);
         });
         if let Some(content) = &self.content {
