@@ -4,19 +4,35 @@
 //!
 //! # Examples
 //! ```
-//! use nostr_nostd::Note;
+//! use nostr_nostd::{Note, String};
 //! const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
+//! let content: String<64> = String::from("esptest");
 //! let mut note = Note::new()
-//!     .content("esptest")
+//!     .content(content)
 //!     .created_at(1686880020)
 //!     .build(PRIVKEY, &[0; 32]);
 //! let (msg, len) = note.serialize_to_relay();
 //! let msg = &msg[0..len];
 //! ```
 //!
-use heapless::{String, Vec};
+pub use heapless::{String, Vec};
 use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message};
 use sha2::{Digest, Sha256};
+
+// Define a custom trait to enforce maximum capacity at compile-time
+trait MaxCapacityArray<const N: usize> {}
+
+// Implement the trait for arrays with capacity up to N
+impl<const N: usize> MaxCapacityArray<N> for [u32; N] {}
+
+// Function that takes a variable-length array with a maximum capacity at compile-time
+// TODO: remove this example
+fn _process_array_with_capacity<const N: usize>(arr: &[u32; N]) {
+    // Process the array here
+    for _element in arr {
+        // Process each element
+    }
+}
 
 /// Defined in [nost-protocol](https://github.com/nostr-protocol/nips/tree/master#event-kinds)
 #[derive(Copy, Clone)]
@@ -52,9 +68,9 @@ pub struct Note {
     pubkey: [u8; 64],
     /// Unix timestamp
     created_at: u32,
-    /// Hardcoded to kind 1
+    /// Default to kind 1
     kind: NoteKinds,
-    tags: Vec<[u8; 100], 5>,
+    tags: Vec<String<64>, 5>,
     content: Option<String<64>>,
     sig: [u8; 128],
 }
@@ -130,7 +146,7 @@ where
     T: AddTag<Next = NextAddTag>,
     NextAddTag: TagCount,
 {
-    pub fn add_tag(mut self, tag: [u8; 100]) -> NoteBuilder<A, NextAddTag> {
+    pub fn add_tag(mut self, tag: String<64>) -> NoteBuilder<A, NextAddTag> {
         let next_tags = self.build_status.tags.next();
         self.note
             .tags
@@ -153,8 +169,8 @@ impl<A, B> NoteBuilder<A, B> {
         self
     }
 
-    pub fn content(mut self, content: &str) -> Self {
-        self.note.content = Some(content.into());
+    pub fn content(mut self, content: String<64>) -> Self {
+        self.note.content = Some(content);
         self
     }
 }
@@ -209,7 +225,7 @@ impl Note {
 
     fn timestamp_bytes(&self) -> [u8; 10] {
         // thanks to ChatGPT for the below code :)
-        let mut buffer = [0_u8; 10];
+        let mut buffer = [255_u8; 10];
         let mut idx = buffer.len();
         let mut n = self.created_at;
 
@@ -238,8 +254,10 @@ impl Note {
             count += 1;
         });
         self.timestamp_bytes().iter().for_each(|bs| {
-            hash_str[count] = *bs;
-            count += 1;
+            if *bs != 255 {
+                hash_str[count] = *bs;
+                count += 1;
+            }
         });
         hash_str[count] = 44; // 44 = ,
         count += 1;
@@ -257,11 +275,9 @@ impl Note {
             count += 1;
         });
         self.tags.iter().for_each(|tag| {
-            tag.iter().for_each(|bs| {
-                if *bs != 255 {
-                    hash_str[count] = *bs;
-                    count += 1;
-                }
+            tag.as_bytes().iter().for_each(|bs| {
+                hash_str[count] = *bs;
+                count += 1;
             })
         });
         br#"],""#.iter().for_each(|bs| {
@@ -329,8 +345,10 @@ impl Note {
             count += 1;
         });
         self.timestamp_bytes().iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            if *bs != 255 {
+                output[count] = *bs;
+                count += 1;
+            }
         });
         br#","id":""#.iter().for_each(|bs| {
             output[count] = *bs;
@@ -371,11 +389,9 @@ impl Note {
             count += 1;
         });
         self.tags.iter().for_each(|tag| {
-            tag.iter().for_each(|bs| {
-                if *bs != 255 {
-                    output[count] = *bs;
-                    count += 1;
-                }
+            tag.as_bytes().iter().for_each(|bs| {
+                output[count] = *bs;
+                count += 1;
             })
         });
         br#"]}"#.iter().for_each(|bs| {
@@ -418,14 +434,16 @@ mod tests {
 
     fn get_note() -> Note {
         Note::new()
-            .content("esptest")
+            .content("esptest".into())
             .created_at(1686880020)
             .build(PRIVKEY, &[0; 32])
     }
 
     #[test]
     fn builder_test() {
-        // do stuff
+        // Example usage:
+        let data = [1, 2, 3, 4, 5];
+        _process_array_with_capacity::<5>(&data); // Compile-time check for maximum capacity
     }
 
     #[test]
