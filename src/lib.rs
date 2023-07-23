@@ -13,9 +13,8 @@
 //! let mut note = Note::new()
 //!     .content(content)
 //!     .created_at(1686880020)
-//!     .build(PRIVKEY, &aux_rand);
-//! let (msg, len) = note.serialize_to_relay();
-//! let msg = &msg[0..len];
+//!     .build(PRIVKEY, aux_rand);
+//! let msg = note.serialize_to_relay();
 //! ```
 //!
 pub use heapless::{String, Vec};
@@ -147,7 +146,7 @@ where
     ///     .content(content)
     ///     .add_tag(tag)
     ///     .created_at(1690076405)
-    ///     .build();
+    ///     .build(PRIVKEY, [0; 32]);
     /// ```
 
     pub fn add_tag(mut self, tag: String<64>) -> NoteBuilder<A, NextAddTag> {
@@ -334,79 +333,63 @@ impl Note {
         base16ct::lower::encode(sig.as_ref(), &mut self.sig).expect("encode error");
     }
 
-    fn to_json(&self) -> ([u8; 1200], usize) {
-        let mut output = [0; 1200];
-        let mut count = 0;
+    fn to_json(&self) -> Vec<u8, 1000> {
+        let mut output: Vec<u8, 1000> = Vec::new();
         br#"{"content":""#.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            output.push(*bs);
         });
         if let Some(content) = &self.content {
             content.as_bytes().iter().for_each(|bs| {
-                output[count] = *bs;
-                count += 1;
+                output.push(*bs);
             });
         }
         br#"","created_at":"#.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            output.push(*bs);
         });
         self.timestamp_bytes().iter().for_each(|bs| {
             if *bs != 255 {
-                output[count] = *bs;
-                count += 1;
+                output.push(*bs);
             }
         });
         br#","id":""#.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            output.push(*bs);
         });
         self.id.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            output.push(*bs);
         });
         br#"","kind":"#.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            output.push(*bs);
         });
         self.kind.serialize().iter().for_each(|bs| {
             if *bs != 255 {
-                output[count] = *bs;
-                count += 1;
+                output.push(*bs);
             }
         });
         br#","pubkey":""#.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            output.push(*bs);
         });
         self.pubkey.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            output.push(*bs);
         });
         br#"","sig":""#.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            output.push(*bs);
         });
         self.sig.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            output.push(*bs);
         });
         br#"","tags":["#.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            output.push(*bs);
         });
         self.tags.iter().for_each(|tag| {
             tag.as_bytes().iter().for_each(|bs| {
-                output[count] = *bs;
-                count += 1;
+                output.push(*bs);
             })
         });
         br#"]}"#.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            output.push(*bs);
         });
 
-        (output, count)
+        output
     }
 
     /// Serializes the note so it can be sent to a relay
@@ -414,23 +397,18 @@ impl Note {
     ///
     /// * `[u8; 1000]` - lower case hex encoded byte array of note, to be sent to relay
     /// * `usize` - length of the buffer used
-    pub fn serialize_to_relay(self) -> ([u8; 1000], usize) {
-        let mut output = [0; 1000];
-        let mut count = 0;
+    pub fn serialize_to_relay(self) -> Vec<u8, 1000> {
+        let mut output: Vec<u8, 1000> = Vec::new();
         // fill in output
         br#"["EVENT","#.iter().for_each(|bs| {
-            output[count] = *bs;
-            count += 1;
+            output.push(*bs);
         });
         let json = self.to_json();
-        for i in 0..json.1 {
-            output[count] = json.0[i];
-            count += 1;
-        }
-        output[count] = 93; // 93 == ] character
-        count += 1;
-
-        (output, count)
+        json.iter().for_each(|bs| {
+            output.push(*bs);
+        });
+        output.push(93);
+        output
     }
 }
 
@@ -487,15 +465,15 @@ mod tests {
     fn json_test() {
         let output =  br#"{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}"#;
         let note = get_note();
-        let (msg, len) = note.to_json();
-        assert_eq!(&msg[0..len], output);
+        let msg = note.to_json();
+        assert_eq!(&msg, output);
     }
 
     #[test]
     fn serialize_to_relay_test() {
         let output =  br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}]"#;
         let note = get_note();
-        let (msg, len) = note.serialize_to_relay();
-        assert_eq!(&msg[0..len], output);
+        let msg = note.serialize_to_relay();
+        assert_eq!(&msg, output);
     }
 }
