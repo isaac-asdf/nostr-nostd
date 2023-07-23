@@ -2,15 +2,18 @@
 //! Implementation of [Nostr](https://nostr.com/) note creation for a no_std environment.
 //! Example project on an esp32 can be seen [here](https://github.com/isaac-asdf/esp32-nostr-client).
 //!
-//! # Examples
+//! # Example
 //! ```
 //! use nostr_nostd::{Note, String};
 //! const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
 //! let content: String<64> = String::from("esptest");
+//! // aux_rand should be generate from a random number generator
+//! // required to keep PRIVKEY secure with Schnorr signatures
+//! let aux_rand = [0; 32];
 //! let mut note = Note::new()
 //!     .content(content)
 //!     .created_at(1686880020)
-//!     .build(PRIVKEY, &[0; 32]);
+//!     .build(PRIVKEY, &aux_rand);
 //! let (msg, len) = note.serialize_to_relay();
 //! let msg = &msg[0..len];
 //! ```
@@ -18,21 +21,6 @@
 pub use heapless::{String, Vec};
 use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message};
 use sha2::{Digest, Sha256};
-
-// Define a custom trait to enforce maximum capacity at compile-time
-trait MaxCapacityArray<const N: usize> {}
-
-// Implement the trait for arrays with capacity up to N
-impl<const N: usize> MaxCapacityArray<N> for [u32; N] {}
-
-// Function that takes a variable-length array with a maximum capacity at compile-time
-// TODO: remove this example
-fn _process_array_with_capacity<const N: usize>(arr: &[u32; N]) {
-    // Process the array here
-    for _element in arr {
-        // Process each element
-    }
-}
 
 /// Defined in [nost-protocol](https://github.com/nostr-protocol/nips/tree/master#event-kinds)
 #[derive(Copy, Clone)]
@@ -90,6 +78,7 @@ pub struct TwoTags;
 pub struct ThreeTags;
 pub struct FourTags;
 pub struct FiveTags;
+pub struct SixTags;
 
 impl TagCount for ZeroTags {}
 impl TagCount for OneTag {}
@@ -146,6 +135,21 @@ where
     T: AddTag<Next = NextAddTag>,
     NextAddTag: TagCount,
 {
+    /// Adds a new tag to the note. The maximum number of tags currently allowed is 5, and that is checked by the compiler.
+    ///
+    /// # Example
+    /// ```
+    /// use nostr_nostd::{Note, String};
+    /// const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
+    /// let content: String<64> = String::from("i have tags");
+    /// let tag: String<64> = String::from(r#"["relay", "wss://relay.example.com/"]"#);
+    /// let note = Note::new()
+    ///     .content(content)
+    ///     .add_tag(tag)
+    ///     .created_at(1690076405)
+    ///     .build();
+    /// ```
+
     pub fn add_tag(mut self, tag: String<64>) -> NoteBuilder<A, NextAddTag> {
         let next_tags = self.build_status.tags.next();
         self.note
@@ -164,11 +168,13 @@ where
 }
 
 impl<A, B> NoteBuilder<A, B> {
+    /// Sets the "kind" field of the note
     pub fn set_kind(mut self, kind: NoteKinds) -> Self {
         self.note.kind = kind;
         self
     }
 
+    /// Sets the "content" field of Note
     pub fn content(mut self, content: String<64>) -> Self {
         self.note.content = Some(content);
         self
@@ -176,6 +182,7 @@ impl<A, B> NoteBuilder<A, B> {
 }
 
 impl<A> NoteBuilder<TimeNotSet, A> {
+    /// Must be called prior to build() to set the time of the note
     pub fn created_at(mut self, created_at: u32) -> NoteBuilder<TimeSet, A> {
         self.note.created_at = created_at;
         NoteBuilder {
@@ -189,10 +196,10 @@ impl<A> NoteBuilder<TimeNotSet, A> {
 }
 
 impl<A> NoteBuilder<TimeSet, A> {
-    pub fn build(mut self, privkey: &str, aux_rnd: &[u8; 32]) -> Note {
+    pub fn build(mut self, privkey: &str, aux_rnd: [u8; 32]) -> Note {
         self.note.set_pubkey(privkey);
         self.note.set_id();
-        self.note.set_sig(privkey, aux_rnd);
+        self.note.set_sig(privkey, &aux_rnd);
         self.note
     }
 }
@@ -402,7 +409,7 @@ impl Note {
         (output, count)
     }
 
-    /// Serializes the note so it can sent to a relay
+    /// Serializes the note so it can be sent to a relay
     /// # Returns
     ///
     /// * `[u8; 1000]` - lower case hex encoded byte array of note, to be sent to relay
@@ -436,14 +443,7 @@ mod tests {
         Note::new()
             .content("esptest".into())
             .created_at(1686880020)
-            .build(PRIVKEY, &[0; 32])
-    }
-
-    #[test]
-    fn builder_test() {
-        // Example usage:
-        let data = [1, 2, 3, 4, 5];
-        _process_array_with_capacity::<5>(&data); // Compile-time check for maximum capacity
+            .build(PRIVKEY, [0; 32])
     }
 
     #[test]
