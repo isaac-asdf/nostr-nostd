@@ -10,7 +10,7 @@
 //! // aux_rand should be generate from a random number generator
 //! // required to keep PRIVKEY secure with Schnorr signatures
 //! let aux_rand = [0; 32];
-//! let mut note = Note::new()
+//! let note = Note::new()
 //!     .content(content)
 //!     .created_at(1686880020)
 //!     .build(PRIVKEY, aux_rand);
