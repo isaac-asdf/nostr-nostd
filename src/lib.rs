@@ -350,57 +350,57 @@ impl Note {
         let mut output: Vec<u8, 1000> = Vec::new();
         br#"{"content":""#.iter().for_each(|bs| {
             // handle result?
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
         if let Some(content) = &self.content {
             content.as_bytes().iter().for_each(|bs| {
-                output.push(*bs);
+                output.push(*bs).expect("Impossible due to size constraints of content, tags");
             });
         }
         br#"","created_at":"#.iter().for_each(|bs| {
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
         self.timestamp_bytes().iter().for_each(|bs| {
             if *bs != 255 {
-                output.push(*bs);
+                output.push(*bs).expect("Impossible due to size constraints of content, tags");
             }
         });
         br#","id":""#.iter().for_each(|bs| {
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
         self.id.iter().for_each(|bs| {
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
         br#"","kind":"#.iter().for_each(|bs| {
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
         self.kind.serialize().iter().for_each(|bs| {
             if *bs != 255 {
-                output.push(*bs);
+                output.push(*bs).expect("Impossible due to size constraints of content, tags");
             }
         });
         br#","pubkey":""#.iter().for_each(|bs| {
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
         self.pubkey.iter().for_each(|bs| {
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
         br#"","sig":""#.iter().for_each(|bs| {
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
         self.sig.iter().for_each(|bs| {
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
         br#"","tags":["#.iter().for_each(|bs| {
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
         self.tags.iter().for_each(|tag| {
             tag.as_bytes().iter().for_each(|bs| {
-                output.push(*bs);
+                output.push(*bs).expect("Impossible due to size constraints of content, tags");
             })
         });
         br#"]}"#.iter().for_each(|bs| {
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
 
         output
@@ -415,13 +415,13 @@ impl Note {
         let mut output: Vec<u8, 1000> = Vec::new();
         // fill in output
         br#"["EVENT","#.iter().for_each(|bs| {
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
         let json = self.to_json();
         json.iter().for_each(|bs| {
-            output.push(*bs);
+            output.push(*bs).expect("Impossible due to size constraints of content, tags");
         });
-        output.push(93);
+        output.push(93).expect("Impossible due to size constraints of content, tags");
         output
     }
 }
