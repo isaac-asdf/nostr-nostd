@@ -23,6 +23,9 @@ pub use heapless::{String, Vec};
 use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message};
 use sha2::{Digest, Sha256};
 
+pub mod errors;
+pub mod relay_responses;
+
 /// Defined by the [nostr protocol](https://github.com/nostr-protocol/nips/tree/master#event-kinds)
 #[derive(Copy, Clone)]
 pub enum NoteKinds {
