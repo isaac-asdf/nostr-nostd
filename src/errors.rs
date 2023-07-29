@@ -3,4 +3,5 @@ pub enum ResponseErrors {
     InvalidType,
     TypeNotAccepted,
     MalformedContent,
+    ContentOverflow,
 }

@@ -1,6 +1,7 @@
 use heapless::String;
 
 use crate::errors::ResponseErrors;
+const CHALLENGE_STRING_SIZE: usize = 64;
 const AUTH_STR: &str = r#"["AUTH","#;
 const COUNT_STR: &str = r#"["COUNT","#;
 const EOSE_STR: &str = r#"["EOSE","#;
@@ -19,7 +20,7 @@ pub enum ResponseTypes {
 
 #[derive(Debug, PartialEq)]
 struct AuthMessage {
-    challenge_string: String<64>,
+    challenge_string: String<CHALLENGE_STRING_SIZE>,
 }
 
 #[derive(Debug)]
@@ -80,6 +81,10 @@ impl TryFrom<&str> for AuthMessage {
         } else {
             let start_index = AUTH_STR.len();
             let end_index = value.len() - 2; // Exclude the trailing '"]'
+
+            if end_index - start_index > CHALLENGE_STRING_SIZE {
+                return Err(ResponseErrors::ContentOverflow);
+            };
 
             // Extract the challenge string and create an AuthMessage
             let challenge_string = &value[start_index..end_index];
