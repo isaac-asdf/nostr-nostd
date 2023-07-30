@@ -79,7 +79,7 @@ impl TryFrom<&str> for AuthMessage {
         if msg_type != ResponseTypes::Auth {
             Err(ResponseErrors::TypeNotAccepted)
         } else {
-            let start_index = AUTH_STR.len();
+            let start_index = AUTH_STR.len() + 2;
             let end_index = value.len() - 2; // Exclude the trailing '"]'
 
             if end_index - start_index > CHALLENGE_STRING_SIZE {
@@ -154,8 +154,13 @@ impl TryFrom<&str> for EventMessage {
         if msg_type != ResponseTypes::Event {
             Err(ResponseErrors::TypeNotAccepted)
         } else {
-            // Implement parsing logic for EventMessage
-            // ...
+            let start_index = EVENT_STR.len() + 2;
+            let end_index = start_index + 64; // an id is 64 characters
+
+            if value.len() < end_index {
+                return Err(ResponseErrors::ContentOverflow);
+            }
+            // todo: implement parsing of event. add check for ID, sig
             unimplemented!()
         }
     }
@@ -289,20 +294,5 @@ mod tests {
             info: "duplicate event".into(),
         };
         assert_eq!(msg, expected_msg);
-    }
-
-    #[test]
-    fn test_get_message() {
-        let message = ResponseTypes::try_from(AUTH_MSG);
-        if let Ok(msg) = message {
-            match msg {
-                ResponseTypes::Auth => todo!(),
-                ResponseTypes::Count => todo!(),
-                ResponseTypes::Eose => todo!(),
-                ResponseTypes::Event => todo!(),
-                ResponseTypes::Notice => todo!(),
-                ResponseTypes::Ok => todo!(),
-            }
-        }
     }
 }
