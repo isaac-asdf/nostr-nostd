@@ -46,7 +46,7 @@ struct NoticeMessage {
 }
 #[derive(Debug, PartialEq)]
 struct OkMessage {
-    event_id: [u8; 64],
+    event_id: String<64>,
     accepted: bool,
     info: String<180>,
 }
@@ -191,9 +191,38 @@ impl TryFrom<&str> for OkMessage {
         if msg_type != ResponseTypes::Ok {
             Err(ResponseErrors::TypeNotAccepted)
         } else {
-            // Implement parsing logic for OkMessage
-            // ...
-            unimplemented!()
+            let start_index = OK_STR.len() + 2;
+            let end_index = start_index + 64; // an id is 64 characters
+
+            if value.len() < end_index {
+                return Err(ResponseErrors::ContentOverflow);
+            }
+            let id = &value[start_index..end_index];
+            let start_index = end_index + 3;
+            let end_index = start_index + 5;
+            let true_false = &value[start_index..end_index];
+            let accepted = if true_false == "false" {
+                false
+            } else if true_false == "true," {
+                true
+            } else {
+                return Err(ResponseErrors::MalformedContent);
+            };
+            let start_index = if accepted {
+                end_index + 2
+            } else {
+                end_index + 3
+            };
+            let end_index = value.len() - 2;
+            if value.len() < end_index {
+                return Err(ResponseErrors::ContentOverflow);
+            }
+            let info = &value[start_index..end_index];
+            Ok(OkMessage {
+                event_id: id.into(),
+                accepted,
+                info: info.into(),
+            })
         }
     }
 }
@@ -239,6 +268,17 @@ mod tests {
             message: "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?".into()
         };
         assert_eq!(msg, expected_notice);
+    }
+
+    #[test]
+    fn test_ok() {
+        let msg = OkMessage::try_from(OK_MSG).unwrap();
+        let expected_msg = OkMessage {
+            event_id: "b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8".into(),
+            accepted: false,
+            info: "duplicate event".into(),
+        };
+        assert_eq!(msg, expected_msg);
     }
 
     #[test]
