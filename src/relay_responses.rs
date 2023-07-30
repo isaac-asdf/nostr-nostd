@@ -131,7 +131,7 @@ impl TryFrom<&str> for EoseMessage {
         if msg_type != ResponseTypes::Eose {
             Err(ResponseErrors::TypeNotAccepted)
         } else {
-            let start_index = COUNT_STR.len() + 2;
+            let start_index = EOSE_STR.len() + 2;
             let end_index = start_index + 64; // an id is 64 characters
 
             if value.len() < end_index {
@@ -268,6 +268,16 @@ mod tests {
             message: "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?".into()
         };
         assert_eq!(msg, expected_notice);
+    }
+
+    #[test]
+    fn test_eose() {
+        let msg = EoseMessage::try_from(EOSE_MSG).unwrap();
+        let expected_msg = EoseMessage {
+            subscription_id: "b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8"
+                .into(),
+        };
+        assert_eq!(msg, expected_msg);
     }
 
     #[test]
