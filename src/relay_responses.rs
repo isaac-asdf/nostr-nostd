@@ -29,22 +29,22 @@ struct CountMessage {
     count: u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct EoseMessage {
     subscription_id: String<64>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct EventMessage {
     subscription_id: String<64>,
     event_json: [u8; 1000],
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct NoticeMessage {
     message: String<180>,
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct OkMessage {
     event_id: [u8; 64],
     accepted: bool,
@@ -131,9 +131,18 @@ impl TryFrom<&str> for EoseMessage {
         if msg_type != ResponseTypes::Eose {
             Err(ResponseErrors::TypeNotAccepted)
         } else {
-            // Implement parsing logic for EoseMessage
-            // ...
-            unimplemented!()
+            let start_index = COUNT_STR.len() + 2;
+            let end_index = start_index + 64; // an id is 64 characters
+
+            if value.len() < end_index {
+                return Err(ResponseErrors::ContentOverflow);
+            }
+
+            // Extract the challenge string and create an AuthMessage
+            let id = &value[start_index..end_index];
+            Ok(EoseMessage {
+                subscription_id: id.into(),
+            })
         }
     }
 }
@@ -159,9 +168,18 @@ impl TryFrom<&str> for NoticeMessage {
         if msg_type != ResponseTypes::Notice {
             Err(ResponseErrors::TypeNotAccepted)
         } else {
-            // Implement parsing logic for NoticeMessage
-            // ...
-            unimplemented!()
+            let start_index = COUNT_STR.len() + 3;
+            let end_index = value.len() - 2;
+
+            if value.len() < end_index {
+                return Err(ResponseErrors::ContentOverflow);
+            }
+
+            // Extract the challenge string and create an AuthMessage
+            let msg = &value[start_index..end_index];
+            Ok(NoticeMessage {
+                message: msg.into(),
+            })
         }
     }
 }
@@ -212,6 +230,15 @@ mod tests {
             count: 5,
         };
         assert_eq!(msg, expected_count);
+    }
+
+    #[test]
+    fn test_notice() {
+        let msg = NoticeMessage::try_from(NOTICE_MSG).unwrap();
+        let expected_notice = NoticeMessage {
+            message: "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?".into()
+        };
+        assert_eq!(msg, expected_notice);
     }
 
     #[test]
