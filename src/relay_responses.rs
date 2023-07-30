@@ -23,20 +23,20 @@ struct AuthMessage {
     challenge_string: String<CHALLENGE_STRING_SIZE>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct CountMessage {
-    subscription_id: [u8; 64],
-    count: u32,
+    subscription_id: String<64>,
+    count: u16,
 }
 
 #[derive(Debug)]
 struct EoseMessage {
-    subscription_id: [u8; 64],
+    subscription_id: String<64>,
 }
 
 #[derive(Debug)]
 struct EventMessage {
-    subscription_id: [u8; 64],
+    subscription_id: String<64>,
     event_json: [u8; 1000],
 }
 
@@ -102,9 +102,24 @@ impl TryFrom<&str> for CountMessage {
         if msg_type != ResponseTypes::Count {
             Err(ResponseErrors::TypeNotAccepted)
         } else {
-            // Implement parsing logic for CountMessage
-            // ...
-            unimplemented!()
+            let start_index = COUNT_STR.len() + 2;
+            let end_index = start_index + 64; // an id is 64 characters
+
+            if value.len() < end_index {
+                return Err(ResponseErrors::ContentOverflow);
+            }
+
+            // Extract the challenge string and create an AuthMessage
+            let id = &value[start_index..end_index];
+            let start_index = end_index + r#"", {"count": "#.len();
+            let end_index = value.len() - r#"}]"#.len();
+            let count_str = &value[start_index..end_index];
+            let num =
+                u16::from_str_radix(count_str, 10).map_err(|_| ResponseErrors::MalformedContent)?;
+            Ok(CountMessage {
+                subscription_id: id.into(),
+                count: num,
+            })
         }
     }
 }
@@ -169,7 +184,7 @@ impl TryFrom<&str> for OkMessage {
 mod tests {
     use super::*;
     const AUTH_MSG: &str = r#"["AUTH", "encrypt me"]"#;
-    const COUNT_MSG: &str = r#"["COUNT", "b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8",{"count": 5}]]"#;
+    const COUNT_MSG: &str = r#"["COUNT", "b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8", {"count": 5}]"#;
     const EOSE_MSG: &str =
         r#"["EOSE", "b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8"]"#;
     const EVENT_MSG: &str = r#"["EVENT", {"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}]"#;
@@ -186,6 +201,17 @@ mod tests {
         };
         assert_eq!(Ok(ResponseTypes::Auth), auth_type);
         assert_eq!(auth_msg, expected_msg);
+    }
+
+    #[test]
+    fn test_count() {
+        let msg = CountMessage::try_from(COUNT_MSG).unwrap();
+        let expected_count = CountMessage {
+            subscription_id: "b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8"
+                .into(),
+            count: 5,
+        };
+        assert_eq!(msg, expected_count);
     }
 
     #[test]
