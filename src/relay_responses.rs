@@ -152,14 +152,16 @@ impl TryFrom<&str> for EventMessage {
         if msg_type != ResponseTypes::Event {
             Err(Error::TypeNotAccepted)
         } else {
-            let start_index = EVENT_STR.len() + 2;
-            let end_index = start_index + 64; // an id is 64 characters
+            let start_index = EVENT_STR.len();
+            let end_index = value.len() - 2;
 
             if value.len() < end_index {
                 return Err(Error::ContentOverflow);
             }
+            let event_json = &value[start_index..end_index];
+            println!("{event_json}");
             Ok(EventMessage {
-                note: Note::try_from(&value[start_index..end_index])?,
+                note: Note::try_from(event_json)?,
             })
         }
     }

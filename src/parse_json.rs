@@ -95,21 +95,29 @@ impl TryFrom<&str> for Note {
             None
         };
 
-        // get pubkey data
-        let pubkey_order_pos = find_index(&locs, pubkey_loc);
-        let pubkey_start = pubkey_loc + pubkey_str.len();
-        let pubkey_end_index = get_end_index(&locs, pubkey_order_pos, value.len(), true);
-        let pubkey_data = &value[pubkey_start..pubkey_end_index];
-        let mut pubkey = [0; 64];
-        base16ct::lower::decode(pubkey_data.as_bytes(), &mut pubkey).expect("encode error");
-
         // get id data
         let id_order_pos = find_index(&locs, id_loc);
         let id_start = id_loc + id_str.len();
         let id_end_index = get_end_index(&locs, id_order_pos, value.len(), true);
         let id_data = &value[id_start..id_end_index];
         let mut id = [0; 64];
-        base16ct::lower::decode(id_data.as_bytes(), &mut id).expect("encode error");
+        let mut count = 0;
+        id_data.as_bytes().iter().for_each(|b| {
+            id[count] = *b;
+            count += 1;
+        });
+
+        // get pubkey data
+        let pubkey_order_pos = find_index(&locs, pubkey_loc);
+        let pubkey_start = pubkey_loc + pubkey_str.len();
+        let pubkey_end_index = get_end_index(&locs, pubkey_order_pos, value.len(), true);
+        let pubkey_data = &value[pubkey_start..pubkey_end_index];
+        let mut pubkey = [0; 64];
+        count = 0;
+        pubkey_data.as_bytes().iter().for_each(|b| {
+            pubkey[count] = *b;
+            count += 1;
+        });
 
         // get sig data
         let sig_order_pos = find_index(&locs, sig_loc);
@@ -117,7 +125,11 @@ impl TryFrom<&str> for Note {
         let sig_end_index = get_end_index(&locs, sig_order_pos, value.len(), true);
         let sig_data = &value[sig_start..sig_end_index];
         let mut sig = [0; 128];
-        base16ct::lower::decode(sig_data.as_bytes(), &mut sig).expect("encode error");
+        count = 0;
+        sig_data.as_bytes().iter().for_each(|b| {
+            sig[count] = *b;
+            count += 1;
+        });
 
         // get kind data
         let kind_order_pos = find_index(&locs, kind_loc);
@@ -143,8 +155,10 @@ impl TryFrom<&str> for Note {
         let tags_data = &value[tags_start..tags_end_index];
         // splits tags for full array
         tags_data.split("],").for_each(|tag| {
-            let tag = remove_array_chars(tag);
-            tags.push(tag).unwrap();
+            if tag.len() > 0 {
+                let tag = remove_array_chars(tag);
+                tags.push(tag).unwrap();
+            }
         });
 
         Ok(Note {
