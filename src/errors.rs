@@ -1,7 +1,8 @@
 #[derive(PartialEq, Debug)]
-pub enum ResponseErrors {
+pub enum Error {
     InvalidType,
     TypeNotAccepted,
     MalformedContent,
     ContentOverflow,
+    EventNotValid,
 }
