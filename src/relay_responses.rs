@@ -159,7 +159,7 @@ impl TryFrom<&str> for EventMessage {
                 return Err(Error::ContentOverflow);
             }
             Ok(EventMessage {
-                note: Note::from_json(&value[start_index..end_index])?,
+                note: Note::try_from(&value[start_index..end_index])?,
             })
         }
     }

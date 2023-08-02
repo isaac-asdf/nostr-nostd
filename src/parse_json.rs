@@ -3,7 +3,7 @@ use heapless::{String, Vec};
 use crate::{errors, Note};
 
 fn get_end_index<const N: usize>(
-    locs: Vec<usize, N>,
+    locs: &Vec<usize, N>,
     this_pos: usize,
     max_len: usize,
     is_string: bool,
@@ -13,6 +13,10 @@ fn get_end_index<const N: usize>(
     } else {
         locs[this_pos + 1] - if is_string { 2 } else { 1 }
     }
+}
+
+fn find_index<const N: usize>(locs: &Vec<usize, N>, search_element: usize) -> usize {
+    locs.binary_search(&search_element).unwrap()
 }
 
 fn remove_whitespace<const N: usize>(value: &str) -> String<N> {
@@ -50,7 +54,8 @@ fn remove_array_chars<const N: usize>(value: &str) -> String<N> {
 impl TryFrom<&str> for Note {
     type Error = errors::Error;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        // set up each var we will search for
+        let value: String<1000> = remove_whitespace(value);
+        // set up each var we will search for, including the leading " character for strings
         let content_str = r#""content":""#;
         let created_at_str = r#""created_at":"#;
         let kind_str = r#""kind":"#;
@@ -70,19 +75,19 @@ impl TryFrom<&str> for Note {
 
         // sort order of occurences of variables
         let mut locs: Vec<usize, 7> = Vec::new();
-        locs.push(content_loc);
-        locs.push(created_at_loc);
-        locs.push(kind_loc);
-        locs.push(id_loc);
-        locs.push(pubkey_loc);
-        locs.push(sig_loc);
-        locs.push(tags_loc);
+        locs.push(content_loc).unwrap();
+        locs.push(created_at_loc).unwrap();
+        locs.push(kind_loc).unwrap();
+        locs.push(id_loc).unwrap();
+        locs.push(pubkey_loc).unwrap();
+        locs.push(sig_loc).unwrap();
+        locs.push(tags_loc).unwrap();
         locs.sort_unstable();
 
         // get content data
-        let content_order_pos = locs.iter().position(|&x| x == content_loc).unwrap();
+        let content_order_pos = find_index(&locs, content_loc);
         let content_start = content_loc + content_str.len();
-        let content_end_index = get_end_index(locs, content_order_pos, value.len(), true);
+        let content_end_index = get_end_index(&locs, content_order_pos, value.len(), true);
         let content_data = &value[content_start..content_end_index];
         let content = if content_data.len() > 0 {
             Some(content_data.into())
@@ -90,19 +95,51 @@ impl TryFrom<&str> for Note {
             None
         };
 
+        // get pubkey data
+        let pubkey_order_pos = find_index(&locs, pubkey_loc);
+        let pubkey_start = pubkey_loc + pubkey_str.len();
+        let pubkey_end_index = get_end_index(&locs, pubkey_order_pos, value.len(), true);
+        let pubkey_data = &value[pubkey_start..pubkey_end_index];
+        let mut pubkey = [0; 64];
+        base16ct::lower::decode(pubkey_data.as_bytes(), &mut pubkey).expect("encode error");
+
+        // get id data
+        let id_order_pos = find_index(&locs, id_loc);
+        let id_start = id_loc + id_str.len();
+        let id_end_index = get_end_index(&locs, id_order_pos, value.len(), true);
+        let id_data = &value[id_start..id_end_index];
+        let mut id = [0; 64];
+        base16ct::lower::decode(id_data.as_bytes(), &mut id).expect("encode error");
+
+        // get sig data
+        let sig_order_pos = find_index(&locs, sig_loc);
+        let sig_start = sig_loc + sig_str.len();
+        let sig_end_index = get_end_index(&locs, sig_order_pos, value.len(), true);
+        let sig_data = &value[sig_start..sig_end_index];
+        let mut sig = [0; 128];
+        base16ct::lower::decode(sig_data.as_bytes(), &mut sig).expect("encode error");
+
         // get kind data
-        let kind_order_pos = locs.iter().position(|&x| x == kind_loc).unwrap();
+        let kind_order_pos = find_index(&locs, kind_loc);
         let kind_start = kind_loc + kind_str.len();
-        let kind_end_index = get_end_index(locs, kind_order_pos, value.len(), true);
+        let kind_end_index = get_end_index(&locs, kind_order_pos, value.len(), false);
         let kind_data = &value[kind_start..kind_end_index];
         let kind =
             u16::from_str_radix(kind_data, 10).map_err(|_| errors::Error::MalformedContent)?;
 
+        // get created_at data
+        let created_at_order_pos = find_index(&locs, created_at_loc);
+        let created_at_start = created_at_loc + created_at_str.len();
+        let created_at_end_index = get_end_index(&locs, created_at_order_pos, value.len(), false);
+        let created_at_data = &value[created_at_start..created_at_end_index];
+        let created_at = u32::from_str_radix(created_at_data, 10)
+            .map_err(|_| errors::Error::MalformedContent)?;
+
         // get tags
         let mut tags = Vec::new();
-        let tags_order_pos = locs.iter().position(|&x| x == tags_loc).unwrap();
+        let tags_order_pos = find_index(&locs, tags_loc);
         let tags_start = tags_loc + tags_str.len();
-        let tags_end_index = get_end_index(locs, tags_order_pos, value.len(), true);
+        let tags_end_index = get_end_index(&locs, tags_order_pos, value.len(), true);
         let tags_data = &value[tags_start..tags_end_index];
         // splits tags for full array
         tags_data.split("],").for_each(|tag| {
@@ -111,13 +148,13 @@ impl TryFrom<&str> for Note {
         });
 
         Ok(Note {
-            id: unimplemented!(),
-            pubkey: unimplemented!(),
-            created_at: unimplemented!(),
+            id,
+            pubkey,
+            created_at,
             kind: kind.try_into()?,
             tags,
             content,
-            sig: unimplemented!(),
+            sig,
         })
     }
 }
