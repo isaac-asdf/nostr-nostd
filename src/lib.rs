@@ -36,6 +36,17 @@ pub enum NoteKinds {
     Auth = 22242,
 }
 
+impl TryFrom<u16> for NoteKinds {
+    type Error = errors::Error;
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(NoteKinds::ShortNote),
+            22242 => Ok(NoteKinds::Auth),
+            _ => Err(errors::Error::UnknownKind),
+        }
+    }
+}
+
 impl NoteKinds {
     pub fn serialize(&self) -> [u8; 10] {
         // will ignore large bytes when serializing
@@ -537,7 +548,7 @@ mod tests {
     #[test]
     fn test_from_json() {
         let json = r#"{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]"#;
-        let note = Note::from(json).unwrap();
+        let note = Note::try_from(json).unwrap();
         let expected_note = get_note();
         assert_eq!(note, expected_note);
     }

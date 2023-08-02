@@ -1,5 +1,6 @@
 #[derive(PartialEq, Debug)]
 pub enum Error {
+    UnknownKind,
     InvalidType,
     TypeNotAccepted,
     MalformedContent,
