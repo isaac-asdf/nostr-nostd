@@ -159,7 +159,6 @@ impl TryFrom<&str> for EventMessage {
                 return Err(Error::ContentOverflow);
             }
             let event_json = &value[start_index..end_index];
-            println!("{event_json}");
             Ok(EventMessage {
                 note: Note::try_from(event_json)?,
             })
