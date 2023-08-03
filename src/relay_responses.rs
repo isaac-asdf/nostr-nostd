@@ -250,7 +250,7 @@ mod tests {
     #[test]
     fn test_auth() {
         let auth_type = ResponseTypes::try_from(AUTH_MSG);
-        let auth_msg = AuthMessage::try_from(AUTH_MSG).unwrap();
+        let auth_msg = AuthMessage::try_from(AUTH_MSG).expect("infallible");
         let expected_msg = "encrypt me";
         let expected_msg = AuthMessage {
             challenge_string: expected_msg.into(),
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_count() {
-        let msg = CountMessage::try_from(COUNT_MSG).unwrap();
+        let msg = CountMessage::try_from(COUNT_MSG).expect("infallible");
         let expected_count = CountMessage {
             subscription_id: "b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8"
                 .into(),
@@ -272,7 +272,7 @@ mod tests {
 
     #[test]
     fn test_notice() {
-        let msg = NoticeMessage::try_from(NOTICE_MSG).unwrap();
+        let msg = NoticeMessage::try_from(NOTICE_MSG).expect("infallible");
         let expected_notice = NoticeMessage {
             message: "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?".into()
         };
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn test_eose() {
-        let msg = EoseMessage::try_from(EOSE_MSG).unwrap();
+        let msg = EoseMessage::try_from(EOSE_MSG).expect("infallible");
         let expected_msg = EoseMessage {
             subscription_id: "b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8"
                 .into(),
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn test_event() {
-        let msg = EventMessage::try_from(EVENT_MSG).unwrap();
+        let msg = EventMessage::try_from(EVENT_MSG).expect("infallible");
         let expected_event = Note {
             content: Some("esptest".into()),
             id: *b"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8",
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn test_ok() {
-        let msg = OkMessage::try_from(OK_MSG).unwrap();
+        let msg = OkMessage::try_from(OK_MSG).expect("infallible");
         let expected_msg = OkMessage {
             event_id: "b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8".into(),
             accepted: false,

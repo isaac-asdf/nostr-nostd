@@ -226,11 +226,11 @@ impl<A> NoteBuilder<TimeNotSet, A> {
 }
 
 impl<A> NoteBuilder<TimeSet, A> {
-    pub fn build(mut self, privkey: &str, aux_rnd: [u8; 32]) -> Note {
-        self.note.set_pubkey(privkey);
-        self.note.set_id();
-        self.note.set_sig(privkey, &aux_rnd);
-        self.note
+    pub fn build(mut self, privkey: &str, aux_rnd: [u8; 32]) -> Result<Note, errors::Error> {
+        self.note.set_pubkey(privkey)?;
+        self.note.set_id()?;
+        self.note.set_sig(privkey, &aux_rnd)?;
+        Ok(self.note)
     }
 }
 
@@ -334,34 +334,45 @@ impl Note {
         (hash_str, count)
     }
 
-    fn set_pubkey(&mut self, privkey: &str) {
+    fn set_pubkey(&mut self, privkey: &str) -> Result<(), errors::Error> {
         let mut buf = [AlignedType::zeroed(); 64];
-        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf).unwrap();
-        let key_pair = KeyPair::from_seckey_str(&sig_obj, privkey).expect("priv key failed");
+        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
+            .map_err(|_| errors::Error::InternalPubkeyError)?;
+        let key_pair = KeyPair::from_seckey_str(&sig_obj, privkey)
+            .map_err(|_| errors::Error::InvalidPrivkey)?;
         let pubkey = &key_pair.public_key().serialize()[1..33];
-        base16ct::lower::encode(pubkey, &mut self.pubkey).expect("encode error");
+        base16ct::lower::encode(pubkey, &mut self.pubkey)
+            .map_err(|_| errors::Error::InternalPubkeyError)?;
+        Ok(())
     }
 
-    fn set_id(&mut self) {
+    fn set_id(&mut self) -> Result<(), errors::Error> {
         let (remaining, len) = self.to_hash_str();
         let mut hasher = Sha256::new();
         hasher.update(&remaining[..len]);
         let results = hasher.finalize();
-        base16ct::lower::encode(&results, &mut self.id).expect("encode error");
+        base16ct::lower::encode(&results, &mut self.id)
+            .map_err(|_| errors::Error::InternalPubkeyError)?;
+        Ok(())
     }
 
-    fn set_sig(&mut self, privkey: &str, aux_rnd: &[u8; 32]) {
+    fn set_sig(&mut self, privkey: &str, aux_rnd: &[u8; 32]) -> Result<(), errors::Error> {
         // figure out what size we need and why
         let mut buf = [AlignedType::zeroed(); 64];
-        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf).unwrap();
+        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
+            .map_err(|_| errors::Error::InternalSigningError)?;
 
         let mut msg = [0_u8; 32];
-        base16ct::lower::decode(&self.id, &mut msg).expect("encode error");
+        base16ct::lower::decode(&self.id, &mut msg)
+            .map_err(|_| errors::Error::InternalSigningError)?;
 
-        let message = Message::from_slice(&msg).expect("32 bytes");
-        let key_pair = KeyPair::from_seckey_str(&sig_obj, privkey).expect("priv key failed");
+        let message = Message::from_slice(&msg).map_err(|_| errors::Error::InternalSigningError)?;
+        let key_pair = KeyPair::from_seckey_str(&sig_obj, privkey)
+            .map_err(|_| errors::Error::InvalidPrivkey)?;
         let sig = sig_obj.sign_schnorr_with_aux_rand(&message, &key_pair, aux_rnd);
-        base16ct::lower::encode(sig.as_ref(), &mut self.sig).expect("encode error");
+        base16ct::lower::encode(sig.as_ref(), &mut self.sig)
+            .map_err(|_| errors::Error::InternalSigningError)?;
+        Ok(())
     }
 
     fn to_json(&self) -> Vec<u8, 1000> {
@@ -490,6 +501,7 @@ mod tests {
             .content("esptest".into())
             .created_at(1686880020)
             .build(PRIVKEY, [0; 32])
+            .expect("infallible")
     }
 
     #[test]
@@ -548,7 +560,7 @@ mod tests {
     #[test]
     fn test_from_json() {
         let json = r#"{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]"#;
-        let note = Note::try_from(json).unwrap();
+        let note = Note::try_from(json).expect("infallible");
         let expected_note = get_note();
         assert_eq!(note, expected_note);
     }

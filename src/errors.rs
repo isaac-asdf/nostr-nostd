@@ -8,4 +8,8 @@ pub enum Error {
     EventNotValid,
     EventMissingField,
     TooManyTags,
+    InternalPubkeyError,
+    InternalSigningError,
+    InvalidPrivkey,
+    InternalError,
 }
