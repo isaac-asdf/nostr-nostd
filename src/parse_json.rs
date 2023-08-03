@@ -27,34 +27,30 @@ fn remove_whitespace<const N: usize>(value: &str) -> Result<String<N>, errors::E
     // keep track of when we are between quotes
     // remove whitespace when we are not between quotes
     let mut remove_whitespace = true;
-    value.chars().for_each(|c| {
+    value.chars().try_for_each(|c| {
         if c == quote_char {
             remove_whitespace = !remove_whitespace;
         };
         if c == space_char && !remove_whitespace {
-            if let Err(_) = output.push(c).unwrap() {
-                return Err(errors::Error::ContentOverflow);
-            };
+            output.push(c).map_err(|_| errors::Error::ContentOverflow)?
         } else if c != space_char {
-            if let Err(_) = output.push(c).unwrap() {
-                return Err(errors::Error::ContentOverflow);
-            }
-        };
-    });
-    output
+            output.push(c).map_err(|_| errors::Error::ContentOverflow)?
+        }
+        Ok(())
+    })?;
+    Ok(output)
 }
 
 fn remove_array_chars<const N: usize>(value: &str) -> Result<String<N>, errors::Error> {
     let mut output = String::new();
     let left_char = char::from(91_u8);
     let right_char = char::from(93_u8);
-    value.chars().for_each(|c| {
+    value.chars().try_for_each(|c| {
         if c != left_char && c != right_char {
-            if let Err(_) = output.push(c).unwrap() {
-                return Err(errors::Error::ContentOverflow);
-            }
+            output.push(c).map_err(|_| errors::Error::ContentOverflow)?
         }
-    });
+        Ok(())
+    })?;
     Ok(output)
 }
 
