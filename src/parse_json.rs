@@ -65,13 +65,41 @@ impl TryFrom<&str> for Note {
         let tags_str = r#""tags":"#;
 
         // find indices matching start locations for each key
-        let (content_loc, _) = value.match_indices(content_str).next().unwrap();
-        let (created_at_loc, _) = value.match_indices(created_at_str).next().unwrap();
-        let (kind_loc, _) = value.match_indices(kind_str).next().unwrap();
-        let (id_loc, _) = value.match_indices(id_str).next().unwrap();
-        let (pubkey_loc, _) = value.match_indices(pubkey_str).next().unwrap();
-        let (sig_loc, _) = value.match_indices(sig_str).next().unwrap();
-        let (tags_loc, _) = value.match_indices(tags_str).next().unwrap();
+        let (content_loc, _) = if let Some(val) = value.match_indices(content_str).next() {
+            val
+        } else {
+            return Err(errors::Error::EventMissingField);
+        };
+        let (created_at_loc, _) = if let Some(val) = value.match_indices(created_at_str).next() {
+            val
+        } else {
+            return Err(errors::Error::EventMissingField);
+        };
+        let (kind_loc, _) = if let Some(val) = value.match_indices(kind_str).next() {
+            val
+        } else {
+            return Err(errors::Error::EventMissingField);
+        };
+        let (id_loc, _) = if let Some(val) = value.match_indices(id_str).next() {
+            val
+        } else {
+            return Err(errors::Error::EventMissingField);
+        };
+        let (pubkey_loc, _) = if let Some(val) = value.match_indices(pubkey_str).next() {
+            val
+        } else {
+            return Err(errors::Error::EventMissingField);
+        };
+        let (sig_loc, _) = if let Some(val) = value.match_indices(sig_str).next() {
+            val
+        } else {
+            return Err(errors::Error::EventMissingField);
+        };
+        let (tags_loc, _) = if let Some(val) = value.match_indices(tags_str).next() {
+            val
+        } else {
+            return Err(errors::Error::EventMissingField);
+        };
 
         // sort order of occurences of variables
         let mut locs: Vec<usize, 7> = Vec::new();

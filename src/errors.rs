@@ -6,4 +6,6 @@ pub enum Error {
     MalformedContent,
     ContentOverflow,
     EventNotValid,
+    EventMissingField,
+    TooManyTags,
 }
