@@ -16,10 +16,11 @@ fn get_end_index<const N: usize>(
 }
 
 fn find_index<const N: usize>(locs: &Vec<usize, N>, search_element: usize) -> usize {
-    locs.binary_search(&search_element).unwrap()
+    // can't fail because locs is filled with all search_elements
+    locs.binary_search(&search_element).expect("infallible")
 }
 
-fn remove_whitespace<const N: usize>(value: &str) -> String<N> {
+fn remove_whitespace<const N: usize>(value: &str) -> Result<String<N>, errors::Error> {
     let mut output = String::new();
     let space_char = char::from(32_u8);
     let quote_char = char::from(34_u8);
@@ -31,30 +32,36 @@ fn remove_whitespace<const N: usize>(value: &str) -> String<N> {
             remove_whitespace = !remove_whitespace;
         };
         if c == space_char && !remove_whitespace {
-            output.push(c).unwrap();
+            if let Err(_) = output.push(c).unwrap() {
+                return Err(errors::Error::ContentOverflow);
+            };
         } else if c != space_char {
-            output.push(c).unwrap();
+            if let Err(_) = output.push(c).unwrap() {
+                return Err(errors::Error::ContentOverflow);
+            }
         };
     });
     output
 }
 
-fn remove_array_chars<const N: usize>(value: &str) -> String<N> {
+fn remove_array_chars<const N: usize>(value: &str) -> Result<String<N>, errors::Error> {
     let mut output = String::new();
     let left_char = char::from(91_u8);
     let right_char = char::from(93_u8);
     value.chars().for_each(|c| {
         if c != left_char && c != right_char {
-            output.push(c).unwrap();
+            if let Err(_) = output.push(c).unwrap() {
+                return Err(errors::Error::ContentOverflow);
+            }
         }
     });
-    output
+    Ok(output)
 }
 
 impl TryFrom<&str> for Note {
     type Error = errors::Error;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let value: String<1000> = remove_whitespace(value);
+        let value: String<1000> = remove_whitespace(value)?;
         // set up each var we will search for, including the leading " character for strings
         let content_str = r#""content":""#;
         let created_at_str = r#""created_at":"#;
@@ -103,13 +110,13 @@ impl TryFrom<&str> for Note {
 
         // sort order of occurences of variables
         let mut locs: Vec<usize, 7> = Vec::new();
-        locs.push(content_loc).unwrap();
-        locs.push(created_at_loc).unwrap();
-        locs.push(kind_loc).unwrap();
-        locs.push(id_loc).unwrap();
-        locs.push(pubkey_loc).unwrap();
-        locs.push(sig_loc).unwrap();
-        locs.push(tags_loc).unwrap();
+        locs.push(content_loc).expect("infallible");
+        locs.push(created_at_loc).expect("infallible");
+        locs.push(kind_loc).expect("infallible");
+        locs.push(id_loc).expect("infallible");
+        locs.push(pubkey_loc).expect("infallible");
+        locs.push(sig_loc).expect("infallible");
+        locs.push(tags_loc).expect("infallible");
         locs.sort_unstable();
 
         // get content data
@@ -182,12 +189,15 @@ impl TryFrom<&str> for Note {
         let tags_end_index = get_end_index(&locs, tags_order_pos, value.len(), true);
         let tags_data = &value[tags_start..tags_end_index];
         // splits tags for full array
-        tags_data.split("],").for_each(|tag| {
+        tags_data.split("],").try_for_each(|tag| {
             if tag.len() > 0 {
-                let tag = remove_array_chars(tag);
-                tags.push(tag).unwrap();
+                let tag = remove_array_chars(tag)?;
+                if let Err(_) = tags.push(tag) {
+                    return Err(errors::Error::TooManyTags);
+                }
             }
-        });
+            Ok(())
+        })?;
 
         Ok(Note {
             id,
