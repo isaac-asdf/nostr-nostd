@@ -465,15 +465,33 @@ impl Note {
         output
     }
 
-    /// Serializes the note so it can be sent to a relay
-    /// # Returns
-    ///
-    /// * `[u8; 1000]` - lower case hex encoded byte array of note, to be sent to relay
-    /// * `usize` - length of the buffer used
+    /// Serializes the note as ["EVENT", {note}]
     pub fn serialize_to_relay(self) -> Vec<u8, 1000> {
         let mut output: Vec<u8, 1000> = Vec::new();
         // fill in output
         br#"["EVENT","#.iter().for_each(|bs| {
+            output
+                .push(*bs)
+                .expect("Impossible due to size constraints of content, tags");
+        });
+        let json = self.to_json();
+        json.iter().for_each(|bs| {
+            output
+                .push(*bs)
+                .expect("Impossible due to size constraints of content, tags");
+        });
+        output
+            .push(93)
+            .expect("Impossible due to size constraints of content, tags");
+        output
+    }
+
+    /// Serializes the note as ["AUTH", {note}]
+    /// For use with NoteKinds::Auth
+    pub fn send_auth_to_relay(self) -> Vec<u8, 1000> {
+        let mut output: Vec<u8, 1000> = Vec::new();
+        // fill in output
+        br#"["AUTH","#.iter().for_each(|bs| {
             output
                 .push(*bs)
                 .expect("Impossible due to size constraints of content, tags");
