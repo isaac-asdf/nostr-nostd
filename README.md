@@ -9,8 +9,10 @@ A demo project can be seen [here](https://github.com/isaac-asdf/esp32-nostr-clie
 
 # Implemented
 
-- Basic Kind 1 note creation
-- Tag addition, up to 5
+- Kinds implemented
+  - ShortNote, 1
+  - Auth, 22242
+- Tags on notes, limit of 5
 
 # Future improvements
 

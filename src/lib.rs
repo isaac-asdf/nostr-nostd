@@ -15,7 +15,8 @@
 //!     .content(content)
 //!     .add_tag(tag)
 //!     .created_at(1686880020)
-//!     .build(PRIVKEY, aux_rand);
+//!     .build(PRIVKEY, aux_rand)
+//!     .unwrap();
 //! let msg = note.serialize_to_relay();
 //! ```
 //!
