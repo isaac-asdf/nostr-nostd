@@ -7,7 +7,7 @@
 //! use nostr_nostd::{Note, String};
 //! const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
 //! let content: String<100> = String::from("Hello, World!");
-//! let tag: String<64> = String::from(r#"["relay", "wss://relay.example.com/"]"#);
+//! let tag: String<150> = String::from(r#"["relay", "wss://relay.example.com/"]"#);
 //! // aux_rand should be generated from a random number generator
 //! // required to keep PRIVKEY secure with Schnorr signatures
 //! let aux_rand = [0; 32];
@@ -24,15 +24,20 @@ pub use heapless::{String, Vec};
 use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message};
 use sha2::{Digest, Sha256};
 
+pub mod dm;
 pub mod errors;
 mod parse_json;
 pub mod relay_responses;
+
+const TAG_SIZE: usize = 150;
 
 /// Defined by the [nostr protocol](https://github.com/nostr-protocol/nips/tree/master#event-kinds)
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum NoteKinds {
     /// For most short text based notes
     ShortNote = 1,
+    /// DM
+    DM = 4,
     /// Ephemeral event for authentication to relay
     Auth = 22242,
 }
@@ -42,6 +47,7 @@ impl TryFrom<u16> for NoteKinds {
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         match value {
             1 => Ok(NoteKinds::ShortNote),
+            4 => Ok(NoteKinds::DM),
             22242 => Ok(NoteKinds::Auth),
             _ => Err(errors::Error::UnknownKind),
         }
@@ -76,7 +82,7 @@ pub struct Note {
     created_at: u32,
     /// Default to kind 1
     kind: NoteKinds,
-    tags: Vec<String<64>, 5>,
+    tags: Vec<String<TAG_SIZE>, 5>,
     content: Option<String<100>>,
     sig: [u8; 128],
 }
@@ -173,7 +179,7 @@ where
     /// use nostr_nostd::{Note, String};
     /// const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
     /// let content: String<100> = String::from("i have tags");
-    /// let tag: String<64> = String::from(r#"["relay", "wss://relay.example.com/"]"#);
+    /// let tag: String<150> = String::from(r#"["relay", "wss://relay.example.com/"]"#);
     /// let note = Note::new()
     ///     .content(content)
     ///     .add_tag(tag)
@@ -181,7 +187,7 @@ where
     ///     .build(PRIVKEY, [0; 32]);
     /// ```
 
-    pub fn add_tag(mut self, tag: String<64>) -> NoteBuilder<A, NextAddTag> {
+    pub fn add_tag(mut self, tag: String<TAG_SIZE>) -> NoteBuilder<A, NextAddTag> {
         let next_tags = self.build_status.tags.next();
         self.note
             .tags
