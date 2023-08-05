@@ -24,12 +24,13 @@ pub use heapless::{String, Vec};
 use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message};
 use sha2::{Digest, Sha256};
 
-pub mod dm;
 pub mod errors;
+pub mod nip04;
 mod parse_json;
 pub mod relay_responses;
 
 const TAG_SIZE: usize = 150;
+const NOTE_SIZE: usize = 100;
 
 /// Defined by the [nostr protocol](https://github.com/nostr-protocol/nips/tree/master#event-kinds)
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -83,7 +84,7 @@ pub struct Note {
     /// Default to kind 1
     kind: NoteKinds,
     tags: Vec<String<TAG_SIZE>, 5>,
-    content: Option<String<100>>,
+    content: Option<String<NOTE_SIZE>>,
     sig: [u8; 128],
 }
 

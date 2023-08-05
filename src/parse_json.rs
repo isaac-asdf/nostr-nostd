@@ -195,6 +195,8 @@ impl TryFrom<&str> for Note {
             Ok(())
         })?;
 
+        // todo: need to add signature verification
+
         Ok(Note {
             id,
             pubkey,
