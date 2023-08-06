@@ -1,6 +1,7 @@
 use core::str::FromStr;
 
 use aes::cipher::generic_array::{typenum, GenericArray};
+use base64ct::{Base64, Encoding};
 use heapless::{String, Vec};
 use secp256k1::{ecdh, PublicKey, SecretKey, XOnlyPublicKey};
 
@@ -35,7 +36,7 @@ pub fn encrypt(
     let iv: [u8; 16] = [0; 16];
 
     let mut cipher = Aes256CbcEnc::new(&key.into(), &iv.into());
-    let mut ciphertext: String<MAX_DM_SIZE> = String::new();
+    let mut ciphertext = [16_u8; MAX_DM_SIZE];
 
     // fill cipher text from slices of input
     let total_blocks = text.len() / 16 + 1;
@@ -49,19 +50,22 @@ pub fn encrypt(
         };
         let mut block = pad_block(&text[i * 16..end_slice], 16);
         cipher.encrypt_block_mut(&mut block);
-        block.iter().for_each(|b| {
-            ciphertext.push(*b as char).unwrap();
+        block.iter().enumerate().for_each(|(j, b)| {
+            ciphertext[i * 16 + j] = *b;
         });
     }
 
-    // Ok(format!(
-    //     "{}?iv={}",
-    //     general_purpose::STANDARD.encode(result),
-    //     general_purpose::STANDARD.encode(iv)
-    // ))
-    println!("cipher");
-    println!("{ciphertext}");
-    Ok(ciphertext)
+    let encode_this = &ciphertext[0..total_blocks * 16];
+    let mut enc_buf = [0u8; MAX_DM_SIZE];
+    let encoded = Base64::encode(encode_this, &mut enc_buf).unwrap();
+
+    let mut enc_buf = [0u8; 32];
+    let iv_str = Base64::encode(&iv, &mut enc_buf).unwrap();
+
+    let mut output = String::from_str(&encoded).unwrap();
+    output.push_str("?iv=").unwrap();
+    output.push_str(&iv_str).unwrap();
+    Ok(output)
 }
 
 // fn pad_blocks<T>(text: T) -> GenericArray<u8>
