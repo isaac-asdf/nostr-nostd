@@ -1,11 +1,12 @@
 use core::str::FromStr;
 
+use aes::cipher::generic_array::{typenum, GenericArray};
 use heapless::{String, Vec};
 use secp256k1::{ecdh, PublicKey, SecretKey, XOnlyPublicKey};
 
 // use aes::cipher::block_padding::Pkcs7;
-use aes::cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit};
-use aes::{Aes256, Block};
+use aes::cipher::{ArrayLength, BlockDecryptMut, BlockEncryptMut, KeyIvInit, Unsigned};
+use aes::Aes256;
 use cbc::{Decryptor, Encryptor};
 
 type Aes256CbcEnc = Encryptor<Aes256>;
@@ -14,31 +15,81 @@ type Aes256CbcDec = Decryptor<Aes256>;
 use crate::errors::Error;
 use crate::NOTE_SIZE;
 
+const MAX_DM_SIZE: usize = 16 * 20;
+
 /// heavily copied from rust-nostr
 ///
 
-/// Entrypt
-pub fn encrypt<T>(sk: &SecretKey, pk: &XOnlyPublicKey, text: T) -> Result<String<NOTE_SIZE>, Error>
-where
-    T: AsRef<[u8]>,
+/// Encrypt
+pub fn encrypt(
+    sk: &SecretKey,
+    pk: &XOnlyPublicKey,
+    text: &str,
+) -> Result<String<MAX_DM_SIZE>, Error>
+// where
+//     T: AsRef<u8>,
 {
     let key: [u8; 32] = generate_shared_key(sk, pk)?;
     // let iv: [u8; 16] = secp256k1::rand::Rng();
+    // let iv: [u8; 16] = b"O1zZfD9HPiig1yuZEWX7uQ";
     let iv: [u8; 16] = [0; 16];
 
-    let cipher = Aes256CbcEnc::new(&key.into(), &iv.into());
-    // let mut blocks: Block = text.into();
-    // cipher.encrypt_blocks_mut(blocks);
+    let mut cipher = Aes256CbcEnc::new(&key.into(), &iv.into());
+    let mut ciphertext: String<MAX_DM_SIZE> = String::new();
+
+    // fill cipher text from slices of input
+    let total_blocks = text.len() / 16 + 1;
+
+    for i in 0..total_blocks {
+        let end_slice = i * 16 + 16;
+        let end_slice = if end_slice > text.len() {
+            text.len()
+        } else {
+            end_slice
+        };
+        let mut block = pad_block(&text[i * 16..end_slice], 16);
+        cipher.encrypt_block_mut(&mut block);
+        block.iter().for_each(|b| {
+            ciphertext.push(*b as char).unwrap();
+        });
+    }
 
     // Ok(format!(
     //     "{}?iv={}",
     //     general_purpose::STANDARD.encode(result),
     //     general_purpose::STANDARD.encode(iv)
     // ))
-    Ok(String::new())
+    println!("cipher");
+    println!("{ciphertext}");
+    Ok(ciphertext)
 }
 
-// /// Dectypt
+// fn pad_blocks<T>(text: T) -> GenericArray<u8>
+// where
+//     T: AsRef<u8>,
+// {
+//     GenericArray::from([42u8; 16])
+// }
+
+fn pad_block<B>(input: &str, block_size: usize) -> GenericArray<u8, B>
+where
+    B: ArrayLength<u8> + Unsigned,
+{
+    let input_len = input.len();
+    let padding_len = block_size - input_len;
+    let padding_byte = padding_len as u8;
+
+    let mut padded_input = GenericArray::default();
+    padded_input[..input_len].copy_from_slice(input.as_bytes());
+
+    for i in input_len..(input_len + padding_len) {
+        padded_input[i] = padding_byte;
+    }
+
+    padded_input
+}
+
+/// Dectypt
 // pub fn decrypt<S>(
 //     sk: &SecretKey,
 //     pk: &XOnlyPublicKey,
@@ -47,26 +98,27 @@ where
 // where
 //     S: Into<String>,
 // {
-//     let encrypted_content: String = encrypted_content.into();
-//     let parsed_content: Vec<&str, 2> = encrypted_content.split("?iv=").collect();
-//     if parsed_content.len() != 2 {
-//         return Err(Error::InvalidContentFormat);
-//     }
+// let encrypted_content: String = encrypted_content.into();
+// let parsed_content: Vec<&str, 2> = encrypted_content.split("?iv=").collect();
+// if parsed_content.len() != 2 {
+//     return Err(Error::InvalidContentFormat);
+// }
 
-//     let encrypted_content: Vec<u8> = general_purpose::STANDARD
-//         .decode(parsed_content[0])
-//         .map_err(|_| Error::Base64Decode)?;
-//     let iv: Vec<u8> = general_purpose::STANDARD
-//         .decode(parsed_content[1])
-//         .map_err(|_| Error::Base64Decode)?;
-//     let key: [u8; 32] = generate_shared_key(sk, pk)?;
+// let encrypted_content: Vec<u8> = general_purpose::STANDARD
+//     .decode(parsed_content[0])
+//     .map_err(|_| Error::Base64Decode)?;
+// let iv: Vec<u8> = general_purpose::STANDARD
+//     .decode(parsed_content[1])
+//     .map_err(|_| Error::Base64Decode)?;
+// let key: [u8; 32] = generate_shared_key(sk, pk)?;
 
-//     let cipher = Aes256CbcDec::new(&key.into(), iv.as_slice().into());
-//     let result = cipher
-//         .decrypt_padded_vec_mut::<Pkcs7>(&encrypted_content)
-//         .map_err(|_| Error::WrongBlockMode)?;
+// let cipher = Aes256CbcDec::new(&key.into(), iv.as_slice().into());
+// let result = cipher
+//     .decrypt_padded_vec_mut::<Pkcs7>(&encrypted_content)
+//     .map_err(|_| Error::WrongBlockMode)?;
 
-//     String::from_utf8(result).map_err(|_| Error::Utf8Encode)
+// String::from_utf8(result).map_err(|_| Error::Utf8Encode)
+//     Ok(())
 // }
 
 /// Generate shared key
@@ -98,8 +150,8 @@ mod tests {
     use secp256k1::{ffi::types::AlignedType, KeyPair};
 
     use super::*;
-    const DM_RECV: &str = r#"{"content":"sZhES/uuV1uMmt9neb6OQw6mykdLYerAnTN+LodleSI=?iv=eM0mGFqFhxmmMwE4YPsQMQ==","created_at":1691110186,"id":"517a5f0f29f5037d763bbd5fbe96c9082c1d39eca917aa22b514c5effc36bab9","kind":4,"pubkey":"ed984a5438492bdc75860aad15a59f8e2f858792824d615401fb49d79c2087b0","sig":"3097de7d5070b892b81b245a5b276eccd7cb283a29a934a71af4960188e55e87d639b774cc331eb9f94ea7c46373c52b8ab39bfee75fe4bb11a1dd4c187e1f3e","tags":[["p","098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"]]}"#;
-    const DM_SEND: &str = r#"{"content":"lPQ9iBd6abUrDBJbHWaL3qqhqsuAxK0aU80IgsZ2aqE=?iv=O1zZfD9HPiig1yuZEWX7uQ==","created_at":1691117390,"id":"c0be8c32d95f7599ccfe324711ad50890ee08985710997fcda1a1a3840a23d51","kind":4,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"8ee1e83ab037c9e9ff1ac97db88aa045b2f1d9204daa7fee25e5f42274ee8d5f4365b87677c4f27827ca043becc65c1f38f646d05adf3d2c570b66fea57e5918","tags":[["p","ed984a5438492bdc75860aad15a59f8e2f858792824d615401fb49d79c2087b0"]]}"#;
+    const _DM_RECV: &str = r#"{"content":"sZhES/uuV1uMmt9neb6OQw6mykdLYerAnTN+LodleSI=?iv=eM0mGFqFhxmmMwE4YPsQMQ==","created_at":1691110186,"id":"517a5f0f29f5037d763bbd5fbe96c9082c1d39eca917aa22b514c5effc36bab9","kind":4,"pubkey":"ed984a5438492bdc75860aad15a59f8e2f858792824d615401fb49d79c2087b0","sig":"3097de7d5070b892b81b245a5b276eccd7cb283a29a934a71af4960188e55e87d639b774cc331eb9f94ea7c46373c52b8ab39bfee75fe4bb11a1dd4c187e1f3e","tags":[["p","098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"]]}"#;
+    const _DM_SEND: &str = r#"{"content":"lPQ9iBd6abUrDBJbHWaL3qqhqsuAxK0aU80IgsZ2aqE=?iv=O1zZfD9HPiig1yuZEWX7uQ==","created_at":1691117390,"id":"c0be8c32d95f7599ccfe324711ad50890ee08985710997fcda1a1a3840a23d51","kind":4,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"8ee1e83ab037c9e9ff1ac97db88aa045b2f1d9204daa7fee25e5f42274ee8d5f4365b87677c4f27827ca043becc65c1f38f646d05adf3d2c570b66fea57e5918","tags":[["p","ed984a5438492bdc75860aad15a59f8e2f858792824d615401fb49d79c2087b0"]]}"#;
     const FROM_SKEY: &str = "aecb67d55da9b658cd419013d7026f30ee23c5c5b032948e84e8ae523b559f92";
     const MY_SKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
     const EXPCTD_MSG: &str = "hello from the internet";
@@ -112,10 +164,11 @@ mod tests {
         let pk = key_pair.x_only_public_key().0;
 
         let my_sk = SecretKey::from_str(MY_SKEY).unwrap();
-        let encrypted = encrypt(&my_sk, &pk, EXPCTD_MSG).expect("test");
-        assert_eq!(
-            encrypted.as_str(),
-            "lPQ9iBd6abUrDBJbHWaL3qqhqsuAxK0aU80IgsZ2aqE=?iv=O1zZfD9HPiig1yuZEWX7uQ=="
-        );
+        let _encrypted = encrypt(&my_sk, &pk, EXPCTD_MSG).expect("test");
+        assert!(false);
+        // assert_eq!(
+        //     encrypted.as_str(),
+        //     "lPQ9iBd6abUrDBJbHWaL3qqhqsuAxK0aU80IgsZ2aqE=?iv=O1zZfD9HPiig1yuZEWX7uQ=="
+        // );
     }
 }
