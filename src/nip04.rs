@@ -1,6 +1,6 @@
 use core::str::FromStr;
 
-use aes::cipher::generic_array::{typenum, GenericArray};
+use aes::cipher::generic_array::GenericArray;
 use base64ct::{Base64, Encoding};
 use heapless::{String, Vec};
 use secp256k1::{ecdh, PublicKey, SecretKey, XOnlyPublicKey};
@@ -48,7 +48,7 @@ pub fn encrypt(
         } else {
             end_slice
         };
-        let mut block = pad_block(&text[i * 16..end_slice], 16);
+        let mut block = pad_block(&text[i * 16..end_slice].as_bytes(), 16);
         cipher.encrypt_block_mut(&mut block);
         block.iter().enumerate().for_each(|(j, b)| {
             ciphertext[i * 16 + j] = *b;
@@ -75,7 +75,7 @@ pub fn encrypt(
 //     GenericArray::from([42u8; 16])
 // }
 
-fn pad_block<B>(input: &str, block_size: usize) -> GenericArray<u8, B>
+fn pad_block<B>(input: &[u8], block_size: usize) -> GenericArray<u8, B>
 where
     B: ArrayLength<u8> + Unsigned,
 {
@@ -84,7 +84,7 @@ where
     let padding_byte = padding_len as u8;
 
     let mut padded_input = GenericArray::default();
-    padded_input[..input_len].copy_from_slice(input.as_bytes());
+    padded_input[..input_len].copy_from_slice(input);
 
     for i in input_len..(input_len + padding_len) {
         padded_input[i] = padding_byte;
@@ -94,36 +94,56 @@ where
 }
 
 /// Dectypt
-// pub fn decrypt<S>(
-//     sk: &SecretKey,
-//     pk: &XOnlyPublicKey,
-//     encrypted_content: S,
-// ) -> Result<String, Error>
-// where
-//     S: Into<String>,
-// {
-// let encrypted_content: String = encrypted_content.into();
-// let parsed_content: Vec<&str, 2> = encrypted_content.split("?iv=").collect();
-// if parsed_content.len() != 2 {
-//     return Err(Error::InvalidContentFormat);
-// }
+pub fn decrypt(
+    sk: &SecretKey,
+    pk: &XOnlyPublicKey,
+    encrypted_content: &str,
+) -> Result<String<MAX_DM_SIZE>, Error> {
+    let parsed_content: Vec<&str, 2> = encrypted_content.split("?iv=").collect();
+    if parsed_content.len() != 2 {
+        return Err(Error::MalformedContent);
+    }
 
-// let encrypted_content: Vec<u8> = general_purpose::STANDARD
-//     .decode(parsed_content[0])
-//     .map_err(|_| Error::Base64Decode)?;
-// let iv: Vec<u8> = general_purpose::STANDARD
-//     .decode(parsed_content[1])
-//     .map_err(|_| Error::Base64Decode)?;
-// let key: [u8; 32] = generate_shared_key(sk, pk)?;
+    let mut decrypted_buf = [0_u8; MAX_DM_SIZE];
 
-// let cipher = Aes256CbcDec::new(&key.into(), iv.as_slice().into());
-// let result = cipher
-//     .decrypt_padded_vec_mut::<Pkcs7>(&encrypted_content)
-//     .map_err(|_| Error::WrongBlockMode)?;
+    let encrypted_content =
+        Base64::decode(parsed_content[0], &mut decrypted_buf).map_err(|_| Error::InternalError)?;
 
-// String::from_utf8(result).map_err(|_| Error::Utf8Encode)
-//     Ok(())
-// }
+    let mut decrypted_iv = [0_u8; MAX_DM_SIZE];
+    let iv =
+        Base64::decode(parsed_content[1], &mut decrypted_iv).map_err(|_| Error::InternalError)?;
+    let key: [u8; 32] = generate_shared_key(sk, pk)?;
+
+    let mut cipher = Aes256CbcDec::new(&key.into(), iv.into());
+    let mut ciphertext = [16_u8; MAX_DM_SIZE];
+
+    // fill cipher text from slices of input
+    let total_blocks = encrypted_content.len() / 16 + 1;
+
+    for i in 0..total_blocks {
+        let end_slice = i * 16 + 16;
+        let end_slice = if end_slice > encrypted_content.len() {
+            encrypted_content.len()
+        } else {
+            end_slice
+        };
+        let mut block = pad_block(&encrypted_content[i * 16..end_slice], 16);
+        cipher.decrypt_block_mut(&mut block);
+        block.iter().enumerate().for_each(|(j, b)| {
+            ciphertext[i * 16 + j] = *b;
+        });
+    }
+    let encode_this = &ciphertext[0..total_blocks * 16];
+    let mut enc_buf = [0u8; MAX_DM_SIZE];
+    let encoded = Base64::encode(encode_this, &mut enc_buf).unwrap();
+
+    let mut enc_buf = [0u8; 32];
+    let iv_str = Base64::encode(&iv, &mut enc_buf).unwrap();
+
+    let output = String::from_str(&encoded).unwrap();
+
+    Ok(output)
+}
 
 /// Generate shared key
 fn generate_shared_key(sk: &SecretKey, pk: &XOnlyPublicKey) -> Result<[u8; 32], Error> {
@@ -168,11 +188,14 @@ mod tests {
         let pk = key_pair.x_only_public_key().0;
 
         let my_sk = SecretKey::from_str(MY_SKEY).unwrap();
-        let _encrypted = encrypt(&my_sk, &pk, EXPCTD_MSG).expect("test");
-        assert!(false);
-        // assert_eq!(
-        //     encrypted.as_str(),
-        //     "lPQ9iBd6abUrDBJbHWaL3qqhqsuAxK0aU80IgsZ2aqE=?iv=O1zZfD9HPiig1yuZEWX7uQ=="
-        // );
+        let encrypted = encrypt(&my_sk, &pk, EXPCTD_MSG).expect("test");
+
+        let decrypted = decrypt(
+            &key_pair.secret_key(),
+            &my_sk.x_only_public_key(&sig_obj).0,
+            encrypted.as_str(),
+        )
+        .unwrap();
+        assert_eq!(decrypted.as_str(), "hello from the internet");
     }
 }
