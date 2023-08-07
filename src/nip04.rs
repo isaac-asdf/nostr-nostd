@@ -118,15 +118,11 @@ pub fn decrypt(
     let mut ciphertext = [16_u8; MAX_DM_SIZE];
 
     // fill cipher text from slices of input
-    let total_blocks = encrypted_content.len() / 16 + 1;
+    let total_blocks = encrypted_content.len() / 16;
 
     for i in 0..total_blocks {
+        // check if on last block, look at last characters of block to calculate padding. save for later?
         let end_slice = i * 16 + 16;
-        let end_slice = if end_slice > encrypted_content.len() {
-            encrypted_content.len()
-        } else {
-            end_slice
-        };
         let mut block = pad_block(&encrypted_content[i * 16..end_slice], 16);
         cipher.decrypt_block_mut(&mut block);
         block.iter().enumerate().for_each(|(j, b)| {
@@ -134,8 +130,6 @@ pub fn decrypt(
         });
     }
     let utf_8 = &ciphertext[0..total_blocks * 16];
-    // let mut enc_buf = [0u8; MAX_DM_SIZE];
-    // let encoded = Base64::encode(encode_this, &mut enc_buf).unwrap();
 
     let mut output = String::new();
 
@@ -143,7 +137,18 @@ pub fn decrypt(
         output.push(*b as char).unwrap();
     });
 
-    Ok(output)
+    Ok(trim_padding(output))
+}
+
+fn trim_padding(text: String<MAX_DM_SIZE>) -> String<MAX_DM_SIZE> {
+    let last = text.chars().last().unwrap() as usize;
+    let len = if last < 17 {
+        text.len() - last
+    } else {
+        text.len()
+    };
+    let unpadded: String<MAX_DM_SIZE> = String::from(&text.as_str()[0..len]);
+    unpadded
 }
 
 /// Generate shared key
@@ -194,9 +199,10 @@ mod tests {
         let decrypted = decrypt(
             &key_pair.secret_key(),
             &my_sk.x_only_public_key(&sig_obj).0,
-            encrypted.as_str(),
+            // encrypted.as_str(),
+            "sZhES/uuV1uMmt9neb6OQw6mykdLYerAnTN+LodleSI=?iv=eM0mGFqFhxmmMwE4YPsQMQ==",
         )
         .unwrap();
-        assert_eq!(decrypted.as_str(), "hello from the internet");
+        assert_eq!(decrypted, "hello from the internet");
     }
 }
