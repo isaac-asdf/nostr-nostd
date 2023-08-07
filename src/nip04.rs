@@ -133,14 +133,15 @@ pub fn decrypt(
             ciphertext[i * 16 + j] = *b;
         });
     }
-    let encode_this = &ciphertext[0..total_blocks * 16];
-    let mut enc_buf = [0u8; MAX_DM_SIZE];
-    let encoded = Base64::encode(encode_this, &mut enc_buf).unwrap();
+    let utf_8 = &ciphertext[0..total_blocks * 16];
+    // let mut enc_buf = [0u8; MAX_DM_SIZE];
+    // let encoded = Base64::encode(encode_this, &mut enc_buf).unwrap();
 
-    let mut enc_buf = [0u8; 32];
-    let iv_str = Base64::encode(&iv, &mut enc_buf).unwrap();
+    let mut output = String::new();
 
-    let output = String::from_str(&encoded).unwrap();
+    utf_8.iter().for_each(|b| {
+        output.push(*b as char).unwrap();
+    });
 
     Ok(output)
 }
