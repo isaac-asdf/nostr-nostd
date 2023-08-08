@@ -5,30 +5,29 @@
 //! # Example
 //! ```
 //! use nostr_nostd::{Note, String};
-//! const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
-//! let content: String<100> = String::from("Hello, World!");
+//! let privkey = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
+//! let content: String<400> = String::from("Hello, World!");
 //! let tag: String<150> = String::from(r#"["relay", "wss://relay.example.com/"]"#);
 //! // aux_rand should be generated from a random number generator
 //! // required to keep PRIVKEY secure with Schnorr signatures
 //! let aux_rand = [0; 32];
-//! let note = Note::new()
+//! let note = Note::new_builder(privkey)
+//!     .unwrap()
 //!     .content(content)
 //!     .add_tag(tag)
 //!     .created_at(1686880020)
-//!     .build(PRIVKEY, aux_rand)
+//!     .build(aux_rand)
 //!     .unwrap();
 //! let msg = note.serialize_to_relay();
 //! ```
 //!
-use core::str::FromStr;
 
 pub use heapless::{String, Vec};
-use nip04::encrypt;
-use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message, SecretKey};
+use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message, XOnlyPublicKey};
 use sha2::{Digest, Sha256};
 
 pub mod errors;
-pub mod nip04;
+mod nip04;
 mod parse_json;
 pub mod relay_responses;
 
@@ -166,6 +165,7 @@ pub struct BuildStatus<A, B> {
 
 /// Used to fill in the fields of a Note.
 pub struct NoteBuilder<A, B> {
+    keypair: KeyPair,
     build_status: BuildStatus<A, B>,
     note: Note,
 }
@@ -178,20 +178,6 @@ where
     /// Adds a new tag to the note.
     /// The maximum number of tags currently allowed is 5.
     /// Attempts to add too many tags will be a compilation error.
-    ///
-    /// # Example
-    /// ```
-    /// use nostr_nostd::{Note, String};
-    /// const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
-    /// let content: String<100> = String::from("i have tags");
-    /// let tag: String<150> = String::from(r#"["relay", "wss://relay.example.com/"]"#);
-    /// let note = Note::new()
-    ///     .content(content)
-    ///     .add_tag(tag)
-    ///     .created_at(1690076405)
-    ///     .build(PRIVKEY, [0; 32]);
-    /// ```
-
     pub fn add_tag(mut self, tag: String<TAG_SIZE>) -> NoteBuilder<A, NextAddTag> {
         let next_tags = self.build_status.tags.next();
         self.note
@@ -204,6 +190,7 @@ where
                 time: self.build_status.time,
                 tags: next_tags,
             },
+            keypair: self.keypair,
             note: self.note,
         }
     }
@@ -237,28 +224,35 @@ impl<A> NoteBuilder<TimeNotSet, A> {
                 time: TimeSet,
                 tags: self.build_status.tags,
             },
+            keypair: self.keypair,
             note: self.note,
         }
     }
 }
 
 impl<A> NoteBuilder<TimeSet, A> {
-    pub fn build(mut self, privkey: &str, aux_rnd: [u8; 32]) -> Result<Note, errors::Error> {
-        self.note.set_pubkey(privkey)?;
+    pub fn build(mut self, aux_rnd: [u8; 32]) -> Result<Note, errors::Error> {
+        self.note.set_pubkey(&self.keypair.x_only_public_key().0)?;
         self.note.set_id()?;
-        self.note.set_sig(privkey, &aux_rnd)?;
+        self.note.set_sig(&self.keypair, &aux_rnd)?;
         Ok(self.note)
     }
 }
 
 impl Note {
     /// Returns a NoteBuilder
-    pub fn new() -> NoteBuilder<TimeNotSet, ZeroTags> {
-        NoteBuilder {
+    pub fn new_builder(privkey: &str) -> Result<NoteBuilder<TimeNotSet, ZeroTags>, errors::Error> {
+        let mut buf = [AlignedType::zeroed(); 64];
+        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
+            .map_err(|_| errors::Error::InternalPubkeyError)?;
+        let key_pair: KeyPair = KeyPair::from_seckey_str(&sig_obj, privkey)
+            .map_err(|_| errors::Error::InvalidPrivkey)?;
+        Ok(NoteBuilder {
             build_status: BuildStatus {
                 time: TimeNotSet,
                 tags: ZeroTags,
             },
+            keypair: key_pair,
             note: Note {
                 id: [0; 64],
                 pubkey: [0; 64],
@@ -268,7 +262,7 @@ impl Note {
                 content: None,
                 sig: [0; 128],
             },
-        }
+        })
     }
 
     fn timestamp_bytes(&self) -> [u8; 10] {
@@ -345,13 +339,8 @@ impl Note {
         (hash_str, count)
     }
 
-    fn set_pubkey(&mut self, privkey: &str) -> Result<(), errors::Error> {
-        let mut buf = [AlignedType::zeroed(); 64];
-        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
-            .map_err(|_| errors::Error::InternalPubkeyError)?;
-        let key_pair = KeyPair::from_seckey_str(&sig_obj, privkey)
-            .map_err(|_| errors::Error::InvalidPrivkey)?;
-        let pubkey = &key_pair.public_key().serialize()[1..33];
+    fn set_pubkey(&mut self, pubkey: &XOnlyPublicKey) -> Result<(), errors::Error> {
+        let pubkey = &pubkey.serialize();
         base16ct::lower::encode(pubkey, &mut self.pubkey)
             .map_err(|_| errors::Error::InternalPubkeyError)?;
         Ok(())
@@ -367,7 +356,7 @@ impl Note {
         Ok(())
     }
 
-    fn set_sig(&mut self, privkey: &str, aux_rnd: &[u8; 32]) -> Result<(), errors::Error> {
+    fn set_sig(&mut self, key_pair: &KeyPair, aux_rnd: &[u8; 32]) -> Result<(), errors::Error> {
         // figure out what size we need and why
         let mut buf = [AlignedType::zeroed(); 64];
         let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
@@ -378,9 +367,8 @@ impl Note {
             .map_err(|_| errors::Error::InternalSigningError)?;
 
         let message = Message::from_slice(&msg).map_err(|_| errors::Error::InternalSigningError)?;
-        let key_pair = KeyPair::from_seckey_str(&sig_obj, privkey)
-            .map_err(|_| errors::Error::InvalidPrivkey)?;
-        let sig = sig_obj.sign_schnorr_with_aux_rand(&message, &key_pair, aux_rnd);
+
+        let sig = sig_obj.sign_schnorr_with_aux_rand(&message, key_pair, aux_rnd);
         base16ct::lower::encode(sig.as_ref(), &mut self.sig)
             .map_err(|_| errors::Error::InternalSigningError)?;
         Ok(())
@@ -526,10 +514,11 @@ mod tests {
     const PRIVKEY: &str = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
 
     fn get_note() -> Note {
-        Note::new()
+        Note::new_builder(PRIVKEY)
+            .unwrap()
             .content("esptest".into())
             .created_at(1686880020)
-            .build(PRIVKEY, [0; 32])
+            .build([0; 32])
             .expect("infallible")
     }
 
