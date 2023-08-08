@@ -21,6 +21,7 @@
 //! ```
 //!
 pub use heapless::{String, Vec};
+use nip04::encrypt;
 use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message};
 use sha2::{Digest, Sha256};
 
@@ -30,7 +31,8 @@ mod parse_json;
 pub mod relay_responses;
 
 const TAG_SIZE: usize = 150;
-const NOTE_SIZE: usize = 100;
+const NOTE_SIZE: usize = 400;
+const MAX_DM_SIZE: usize = 16 * 20;
 
 /// Defined by the [nostr protocol](https://github.com/nostr-protocol/nips/tree/master#event-kinds)
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -213,8 +215,14 @@ impl<A, B> NoteBuilder<A, B> {
     }
 
     /// Sets the "content" field of Note
-    pub fn content(mut self, content: String<100>) -> Self {
+    pub fn content(mut self, content: String<NOTE_SIZE>) -> Self {
         self.note.content = Some(content);
+        self
+    }
+
+    /// Sets the "content" field according to Nip04
+    pub fn set_nip04_content(mut self, content: String<MAX_DM_SIZE>) -> Self {
+        // hmm...
         self
     }
 }

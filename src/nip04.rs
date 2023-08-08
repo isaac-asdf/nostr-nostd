@@ -14,8 +14,7 @@ type Aes256CbcEnc = Encryptor<Aes256>;
 type Aes256CbcDec = Decryptor<Aes256>;
 
 use crate::errors::Error;
-
-const MAX_DM_SIZE: usize = 16 * 20;
+use crate::MAX_DM_SIZE;
 
 /// heavily copied from rust-nostr
 
@@ -52,14 +51,14 @@ pub fn encrypt(
 
     let encode_this = &ciphertext[0..total_blocks * 16];
     let mut enc_buf = [0u8; MAX_DM_SIZE];
-    let encoded = Base64::encode(encode_this, &mut enc_buf).unwrap();
+    let encoded = Base64::encode(encode_this, &mut enc_buf).map_err(|_| Error::InternalError)?;
 
     let mut enc_buf = [0u8; 32];
-    let iv_str = Base64::encode(&iv, &mut enc_buf).unwrap();
+    let iv_str = Base64::encode(&iv, &mut enc_buf).map_err(|_| Error::InternalError)?;
 
-    let mut output = String::from_str(&encoded).unwrap();
-    output.push_str("?iv=").unwrap();
-    output.push_str(&iv_str).unwrap();
+    let mut output = String::from_str(&encoded).map_err(|_| Error::InternalError)?;
+    output.push_str("?iv=").map_err(|_| Error::InternalError)?;
+    output.push_str(&iv_str).map_err(|_| Error::InternalError)?;
     Ok(output)
 }
 
@@ -118,14 +117,15 @@ pub fn decrypt(
         });
     }
     let utf_8 = &ciphertext[0..total_blocks * 16];
-    let pad_digit = *utf_8.last().unwrap() as usize;
+    let pad_digit = *utf_8.last().ok_or(Error::InternalError)? as usize;
     let utf_8 = &ciphertext[0..utf_8.len() - pad_digit];
 
     let mut output = String::new();
 
-    utf_8.iter().for_each(|b| {
-        output.push(*b as char).unwrap();
-    });
+    utf_8.iter().try_for_each(|b| {
+        output.push(*b as char).map_err(|_| Error::InternalError)?;
+        Ok(())
+    })?;
 
     Ok(output)
 }
@@ -166,13 +166,13 @@ mod tests {
     const EXPCTD_MSG: &str = "hello from the internet";
 
     #[test]
-    fn test_encrypt() {
+    fn test_e2e() {
         let mut buf = [AlignedType::zeroed(); 64];
-        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf).unwrap();
-        let key_pair = KeyPair::from_seckey_str(&sig_obj, FROM_SKEY).unwrap();
+        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf).expect("test");
+        let key_pair = KeyPair::from_seckey_str(&sig_obj, FROM_SKEY).expect("test");
         let pk = key_pair.x_only_public_key().0;
 
-        let my_sk = SecretKey::from_str(MY_SKEY).unwrap();
+        let my_sk = SecretKey::from_str(MY_SKEY).expect("test");
         let encrypted = encrypt(&my_sk, &pk, EXPCTD_MSG).expect("test");
 
         let decrypted = decrypt(
@@ -180,7 +180,24 @@ mod tests {
             &my_sk.x_only_public_key(&sig_obj).0,
             encrypted.as_str(),
         )
-        .unwrap();
+        .expect("test");
+        assert_eq!(decrypted, "hello from the internet");
+    }
+
+    #[test]
+    fn test_decrypt() {
+        let mut buf = [AlignedType::zeroed(); 64];
+        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf).expect("test");
+        let key_pair = KeyPair::from_seckey_str(&sig_obj, FROM_SKEY).expect("test");
+
+        let my_sk = SecretKey::from_str(MY_SKEY).expect("test");
+
+        let decrypted = decrypt(
+            &key_pair.secret_key(),
+            &my_sk.x_only_public_key(&sig_obj).0,
+            "sZhES/uuV1uMmt9neb6OQw6mykdLYerAnTN+LodleSI=?iv=eM0mGFqFhxmmMwE4YPsQMQ==",
+        )
+        .expect("test");
         assert_eq!(decrypted, "hello from the internet");
     }
 }
