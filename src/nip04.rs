@@ -14,22 +14,17 @@ type Aes256CbcEnc = Encryptor<Aes256>;
 type Aes256CbcDec = Decryptor<Aes256>;
 
 use crate::errors::Error;
-use crate::NOTE_SIZE;
 
 const MAX_DM_SIZE: usize = 16 * 20;
 
 /// heavily copied from rust-nostr
-///
 
 /// Encrypt
 pub fn encrypt(
     sk: &SecretKey,
     pk: &XOnlyPublicKey,
     text: &str,
-) -> Result<String<MAX_DM_SIZE>, Error>
-// where
-//     T: AsRef<u8>,
-{
+) -> Result<String<MAX_DM_SIZE>, Error> {
     let key: [u8; 32] = generate_shared_key(sk, pk)?;
     // let iv: [u8; 16] = secp256k1::rand::Rng();
     // let iv: [u8; 16] = b"O1zZfD9HPiig1yuZEWX7uQ";
@@ -67,13 +62,6 @@ pub fn encrypt(
     output.push_str(&iv_str).unwrap();
     Ok(output)
 }
-
-// fn pad_blocks<T>(text: T) -> GenericArray<u8>
-// where
-//     T: AsRef<u8>,
-// {
-//     GenericArray::from([42u8; 16])
-// }
 
 fn pad_block<B>(input: &[u8], block_size: usize) -> GenericArray<u8, B>
 where
@@ -130,6 +118,8 @@ pub fn decrypt(
         });
     }
     let utf_8 = &ciphertext[0..total_blocks * 16];
+    let pad_digit = *utf_8.last().unwrap() as usize;
+    let utf_8 = &ciphertext[0..utf_8.len() - pad_digit];
 
     let mut output = String::new();
 
@@ -137,18 +127,7 @@ pub fn decrypt(
         output.push(*b as char).unwrap();
     });
 
-    Ok(trim_padding(output))
-}
-
-fn trim_padding(text: String<MAX_DM_SIZE>) -> String<MAX_DM_SIZE> {
-    let last = text.chars().last().unwrap() as usize;
-    let len = if last < 17 {
-        text.len() - last
-    } else {
-        text.len()
-    };
-    let unpadded: String<MAX_DM_SIZE> = String::from(&text.as_str()[0..len]);
-    unpadded
+    Ok(output)
 }
 
 /// Generate shared key
@@ -199,8 +178,7 @@ mod tests {
         let decrypted = decrypt(
             &key_pair.secret_key(),
             &my_sk.x_only_public_key(&sig_obj).0,
-            // encrypted.as_str(),
-            "sZhES/uuV1uMmt9neb6OQw6mykdLYerAnTN+LodleSI=?iv=eM0mGFqFhxmmMwE4YPsQMQ==",
+            encrypted.as_str(),
         )
         .unwrap();
         assert_eq!(decrypted, "hello from the internet");
