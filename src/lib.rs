@@ -20,9 +20,11 @@
 //! let msg = note.serialize_to_relay();
 //! ```
 //!
+use core::str::FromStr;
+
 pub use heapless::{String, Vec};
 use nip04::encrypt;
-use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message};
+use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message, SecretKey};
 use sha2::{Digest, Sha256};
 
 pub mod errors;
@@ -32,7 +34,7 @@ pub mod relay_responses;
 
 const TAG_SIZE: usize = 150;
 const NOTE_SIZE: usize = 400;
-const MAX_DM_SIZE: usize = 16 * 20;
+const MAX_DM_SIZE: usize = 400;
 
 /// Defined by the [nostr protocol](https://github.com/nostr-protocol/nips/tree/master#event-kinds)
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -221,8 +223,7 @@ impl<A, B> NoteBuilder<A, B> {
     }
 
     /// Sets the "content" field according to Nip04
-    pub fn set_nip04_content(mut self, content: String<MAX_DM_SIZE>) -> Self {
-        // hmm...
+    pub fn set_nip04_content(mut self, content: &str, rcvr_pubkey: &str) -> Self {
         self
     }
 }
@@ -251,13 +252,7 @@ impl<A> NoteBuilder<TimeSet, A> {
 }
 
 impl Note {
-    /// Returns a new Note
-    /// # Arguments
-    ///
-    /// * `content` - data to be included in "content" field
-    /// * `aux_rnd` - MUST be unique for each note created to avoid leaking private key
-    /// * `created_at` - Unix timestamp for note creation time
-    ///
+    /// Returns a NoteBuilder
     pub fn new() -> NoteBuilder<TimeNotSet, ZeroTags> {
         NoteBuilder {
             build_status: BuildStatus {
