@@ -208,10 +208,24 @@ impl<A, B> NoteBuilder<A, B> {
         self.note.content = Some(content);
         self
     }
+}
 
-    /// Sets the "content" field according to Nip04
-    pub fn set_nip04_content(mut self, content: &str, rcvr_pubkey: &str) -> Self {
-        self
+impl<A> NoteBuilder<A, ZeroTags> {
+    /// Sets the "content" field according to Nip04 and adds the tag for receiver pubkey
+    pub fn create_dm(mut self, content: &str, rcvr_pubkey: &str) -> NoteBuilder<A, OneTag> {
+        let pubkey = XOnlyPublicKey::from_slice(rcvr_pubkey.as_bytes()).unwrap();
+        let encrypted = nip04::encrypt(&self.keypair.secret_key(), &pubkey, content).unwrap();
+        self.note.content = Some(encrypted);
+        let mut tag = String::from(r#"["p","#);
+        let mut pk_text: [u8; 64] = [0; 64];
+        base16ct::lower::encode(&pubkey.serialize(), &mut pk_text)
+            .map_err(|_| errors::Error::InternalPubkeyError)
+            .unwrap();
+        pk_text.iter().for_each(|c| {
+            tag.push(*c as char).unwrap();
+        });
+        tag.push_str(r#""]"#).unwrap();
+        self.add_tag(tag)
     }
 }
 
