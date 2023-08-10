@@ -45,8 +45,9 @@ fn remove_array_chars<const N: usize>(value: &str) -> Result<String<N>, errors::
     let mut output = String::new();
     let left_char = char::from(91_u8);
     let right_char = char::from(93_u8);
+    let quote_char = char::from(34_u8);
     value.chars().try_for_each(|c| {
-        if c != left_char && c != right_char {
+        if c != left_char && c != right_char && c != quote_char {
             output.push(c).map_err(|_| errors::Error::ContentOverflow)?
         }
         Ok(())

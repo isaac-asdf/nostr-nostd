@@ -1,4 +1,4 @@
-#![no_std]
+// #![no_std]
 //! Implementation of [Nostr](https://nostr.com/) note creation for a #![no_std] environment.
 //! An example project using an esp32 can be seen [here](https://github.com/isaac-asdf/esp32-nostr-client).
 //!
@@ -7,7 +7,7 @@
 //! use nostr_nostd::{Note, String};
 //! let privkey = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
 //! let content: String<400> = String::from("Hello, World!");
-//! let tag: String<150> = String::from(r#"["relay", "wss://relay.example.com/"]"#);
+//! let tag: String<150> = String::from("relay,wss://relay.example.com/");
 //! // aux_rand should be generated from a random number generator
 //! // required to keep PRIVKEY secure with Schnorr signatures
 //! let aux_rand = [0; 32];
@@ -331,10 +331,29 @@ impl Note {
             count += 1;
         });
         self.tags.iter().for_each(|tag| {
-            tag.as_bytes().iter().for_each(|bs| {
-                hash_str[count] = *bs;
+            // add opening [
+            hash_str[count] = 91;
+            count += 1;
+            tag.split(",").for_each(|element| {
+                // add opening "
+                hash_str[count] = 34;
                 count += 1;
-            })
+                element.as_bytes().iter().for_each(|bs| {
+                    hash_str[count] = *bs;
+                    count += 1;
+                });
+                // add closing "
+                hash_str[count] = 34;
+                count += 1;
+                // add , separator back in
+                hash_str[count] = 44;
+                count += 1;
+            });
+            // remove last comma
+            count -= 1;
+            // add closing ]
+            hash_str[count] = 93;
+            count += 1;
         });
         br#"],""#.iter().for_each(|bs| {
             hash_str[count] = *bs;
@@ -463,11 +482,25 @@ impl Note {
                 .expect("Impossible due to size constraints of content, tags");
         });
         self.tags.iter().for_each(|tag| {
-            tag.as_bytes().iter().for_each(|bs| {
-                output
-                    .push(*bs)
-                    .expect("Impossible due to size constraints of content, tags");
-            })
+            self.tags.iter().for_each(|tag| {
+                // add opening [
+                output.push(91).expect("impossible");
+                tag.split(",").for_each(|element| {
+                    // add opening "
+                    output.push(34).expect("impossible");
+                    element.as_bytes().iter().for_each(|bs| {
+                        output.push(*bs).expect("impossible");
+                    });
+                    // add closing "
+                    output.push(34).expect("impossible");
+                    // add a comma separator
+                    output.push(44).expect("impossible");
+                });
+                // remove last comma
+                output.pop().expect("impossible");
+                // add closing ]
+                output.push(93).expect("impossible");
+            });
         });
         br#"]}"#.iter().for_each(|bs| {
             output
@@ -520,6 +553,43 @@ impl Note {
             .expect("Impossible due to size constraints of content, tags");
         output
     }
+
+    /// Get associated values with a given tag name.
+    /// Returns up to 5 instances for the searched for label.
+    pub fn get_tag(&self, tag: &str) -> Vec<Vec<&str, 5>, 5> {
+        let mut search_tag: String<10> = String::from(tag);
+        search_tag.push_str(",").unwrap();
+        self.tags
+            .iter()
+            .filter(|my_tag| my_tag.starts_with(search_tag.as_str()))
+            // each tag will look like tag_name,val1,val2,etc...
+            .map(|tag| {
+                let mut splits = tag.split(",");
+                // remove tag_name from splits
+                splits.next();
+                splits.collect()
+            })
+            .collect()
+    }
+
+    /// Decode an encrypted DM
+    pub fn read_dm(&self, privkey: &str) -> Result<String<MAX_DM_SIZE>, errors::Error> {
+        let mut buf = [AlignedType::zeroed(); 64];
+        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
+            .map_err(|_| errors::Error::InternalPubkeyError)?;
+        let key_pair: KeyPair = KeyPair::from_seckey_str(&sig_obj, privkey)
+            .map_err(|_| errors::Error::InvalidPrivkey)?;
+        let sk = key_pair.secret_key();
+        let pk_tag = self.get_tag("p");
+        let pk_tag = *pk_tag.first().unwrap().first().unwrap();
+        // println!("{:?}", pk_tag);
+        let mut msg = [0_u8; 32];
+        base16ct::lower::decode(&pk_tag, &mut msg)
+            .map_err(|_| errors::Error::InternalSigningError)?;
+        let pk =
+            XOnlyPublicKey::from_slice(&msg).map_err(|_| errors::Error::InternalPubkeyError)?;
+        nip04::decrypt(&sk, &pk, self.content.as_ref().unwrap().as_str())
+    }
 }
 
 #[cfg(test)]
@@ -534,6 +604,20 @@ mod tests {
             .created_at(1686880020)
             .build([0; 32])
             .expect("infallible")
+    }
+
+    #[test]
+    fn test_note_with_tag() {
+        let note = Note::new_builder(PRIVKEY)
+            .unwrap()
+            .content("esptest".into())
+            .add_tag("l,bitcoin".into())
+            .created_at(1686880020)
+            .build([0; 32])
+            .expect("infallible");
+        let test = note.serialize_to_relay();
+        let expected = br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"f5a693c9a4add3739a4186c0422f925981f75cb1f7a0adfc48852e54973415a6","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"ff68b2c739f6d19df47c5ae5f150895e11876458afcf8bf169636e55c2b6cce1230d0c54ce9869b555b3395018c1efdad5b4c5a4afbc2748e1f8c3a34da787ec","tags":[["l","bitcoin"]]}]"#;
+        assert_eq!(test, expected);
     }
 
     #[test]
@@ -595,5 +679,68 @@ mod tests {
         let note = Note::try_from(json).expect("infallible");
         let expected_note = get_note();
         assert_eq!(note, expected_note);
+    }
+
+    #[test]
+    fn test_tags() {
+        let dm_rcv: &str = r#"{"content":"sZhES/uuV1uMmt9neb6OQw6mykdLYerAnTN+LodleSI=?iv=eM0mGFqFhxmmMwE4YPsQMQ==","created_at":1691110186,"id":"517a5f0f29f5037d763bbd5fbe96c9082c1d39eca917aa22b514c5effc36bab9","kind":4,"pubkey":"ed984a5438492bdc75860aad15a59f8e2f858792824d615401fb49d79c2087b0","sig":"3097de7d5070b892b81b245a5b276eccd7cb283a29a934a71af4960188e55e87d639b774cc331eb9f94ea7c46373c52b8ab39bfee75fe4bb11a1dd4c187e1f3e","tags":[["p","098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"]]}"#;
+        let note = Note::try_from(dm_rcv).unwrap();
+        // println!("{:?}", note.tags);
+
+        let tags = note.get_tag("p");
+        let pubkey = tags.first().unwrap().first().unwrap();
+        assert_eq!(
+            *pubkey,
+            "098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"
+        );
+    }
+
+    #[test]
+    fn test_get_tag() {
+        let dm_rcv: &str = r#"{"content":"sZhES/uuV1uMmt9neb6OQw6mykdLYerAnTN+LodleSI=?iv=eM0mGFqFhxmmMwE4YPsQMQ==","created_at":1691110186,"id":"517a5f0f29f5037d763bbd5fbe96c9082c1d39eca917aa22b514c5effc36bab9","kind":4,"pubkey":"ed984a5438492bdc75860aad15a59f8e2f858792824d615401fb49d79c2087b0","sig":"3097de7d5070b892b81b245a5b276eccd7cb283a29a934a71af4960188e55e87d639b774cc331eb9f94ea7c46373c52b8ab39bfee75fe4bb11a1dd4c187e1f3e","tags":[["p","098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"]]}"#;
+        let note = Note::try_from(dm_rcv).unwrap();
+        // println!("json:{:?}", note.tags);
+        let mut tags = Vec::new();
+        tags.push(String::from("p,test_pubkey")).unwrap();
+        let note = Note {
+            id: [0; 64],
+            pubkey: [0; 64],
+            created_at: 0,
+            kind: NoteKinds::DM,
+            tags,
+            content: None,
+            sig: [0; 128],
+        };
+        // println!("self:{:?}", note.tags);
+        let tags = note.get_tag("p");
+        let pubkey = tags.first().unwrap().first().unwrap();
+        assert_eq!(*pubkey, "test_pubkey");
+        // assert_eq!(*pubkey, "");
+    }
+
+    #[test]
+    fn test_get_two_tags() {
+        let mut tags = Vec::new();
+        tags.push(String::from("l,labeled,another label")).unwrap();
+        tags.push(String::from("l,ignore the other label")).unwrap();
+        let note = Note {
+            id: [0; 64],
+            pubkey: [0; 64],
+            created_at: 0,
+            kind: NoteKinds::DM,
+            tags,
+            content: None,
+            sig: [0; 128],
+        };
+        let binding = note.get_tag("l");
+        let mut tags = binding.iter();
+        let label = tags.next().unwrap();
+        let mut labels = label.iter();
+        assert_eq!(*labels.next().unwrap(), "labeled");
+        assert_eq!(*labels.next().unwrap(), "another label");
+
+        let label = tags.next().unwrap();
+        let mut labels = label.iter();
+        assert_eq!(*labels.next().unwrap(), "ignore the other label");
     }
 }

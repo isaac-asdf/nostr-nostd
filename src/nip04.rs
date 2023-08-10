@@ -118,6 +118,9 @@ pub fn decrypt(
     }
     let utf_8 = &ciphertext[0..total_blocks * 16];
     let pad_digit = *utf_8.last().ok_or(Error::InternalError)? as usize;
+    let pad_digit = if pad_digit < 17 { pad_digit } else { 0 };
+    // println!("{:?}", utf_8);
+    // println!("{pad_digit}");
     let utf_8 = &ciphertext[0..utf_8.len() - pad_digit];
 
     let mut output = String::new();
@@ -157,6 +160,8 @@ fn normalize_schnorr_pk(schnorr_pk: &XOnlyPublicKey) -> Result<PublicKey, Error>
 #[cfg(test)]
 mod tests {
     use secp256k1::{ffi::types::AlignedType, KeyPair};
+
+    use crate::Note;
 
     use super::*;
     const _DM_RECV: &str = r#"{"content":"sZhES/uuV1uMmt9neb6OQw6mykdLYerAnTN+LodleSI=?iv=eM0mGFqFhxmmMwE4YPsQMQ==","created_at":1691110186,"id":"517a5f0f29f5037d763bbd5fbe96c9082c1d39eca917aa22b514c5effc36bab9","kind":4,"pubkey":"ed984a5438492bdc75860aad15a59f8e2f858792824d615401fb49d79c2087b0","sig":"3097de7d5070b892b81b245a5b276eccd7cb283a29a934a71af4960188e55e87d639b774cc331eb9f94ea7c46373c52b8ab39bfee75fe4bb11a1dd4c187e1f3e","tags":[["p","098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"]]}"#;
@@ -199,5 +204,14 @@ mod tests {
         )
         .expect("test");
         assert_eq!(decrypted, "hello from the internet");
+    }
+
+    #[test]
+    fn test_rcvd_dm() {
+        let note = Note::try_from(_DM_SEND).unwrap();
+        let msg = note
+            .read_dm("a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3")
+            .unwrap();
+        assert_eq!(msg, String::<400>::from("hello from the internet"));
     }
 }
