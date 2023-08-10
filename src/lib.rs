@@ -15,8 +15,7 @@
 //!     .unwrap()
 //!     .content(content)
 //!     .add_tag(tag)
-//!     .created_at(1686880020)
-//!     .build(aux_rand)
+//!     .build(1686880020, aux_rand)
 //!     .unwrap();
 //! let msg = note.serialize_to_relay();
 //! ```
@@ -91,11 +90,6 @@ pub struct Note {
     sig: [u8; 128],
 }
 
-/// NoteBuilder has had `.created_at()` called and is ready for `.build()`
-pub struct TimeSet;
-/// NoteBuilder is waiting for `.created_at()` prior to `.build()`
-pub struct TimeNotSet;
-
 /// Impl for tags which can had an additional tag added.
 /// ie, not implemented for FiveTags but implemented for all others
 pub trait AddTag {
@@ -158,19 +152,18 @@ impl AddTag for FourTags {
 }
 
 /// Used to track the addition of the time created and the number of tags added
-pub struct BuildStatus<A, B> {
-    time: A,
+pub struct BuildStatus<B> {
     tags: B,
 }
 
 /// Used to fill in the fields of a Note.
-pub struct NoteBuilder<A, B> {
+pub struct NoteBuilder<B> {
     keypair: KeyPair,
-    build_status: BuildStatus<A, B>,
+    build_status: BuildStatus<B>,
     note: Note,
 }
 
-impl<A, T, NextAddTag> NoteBuilder<A, T>
+impl<T, NextAddTag> NoteBuilder<T>
 where
     T: AddTag<Next = NextAddTag>,
     NextAddTag: TagCount,
@@ -178,7 +171,7 @@ where
     /// Adds a new tag to the note.
     /// The maximum number of tags currently allowed is 5.
     /// Attempts to add too many tags will be a compilation error.
-    pub fn add_tag(mut self, tag: String<TAG_SIZE>) -> NoteBuilder<A, NextAddTag> {
+    pub fn add_tag(mut self, tag: String<TAG_SIZE>) -> NoteBuilder<NextAddTag> {
         let next_tags = self.build_status.tags.next();
         self.note
             .tags
@@ -186,17 +179,14 @@ where
             .expect("AddTag impl error, should be impossible to err here");
 
         NoteBuilder {
-            build_status: BuildStatus {
-                time: self.build_status.time,
-                tags: next_tags,
-            },
+            build_status: BuildStatus { tags: next_tags },
             keypair: self.keypair,
             note: self.note,
         }
     }
 }
 
-impl<A, B> NoteBuilder<A, B> {
+impl<B> NoteBuilder<B> {
     /// Sets the "kind" field of the note
     pub fn set_kind(mut self, kind: NoteKinds) -> Self {
         self.note.kind = kind;
@@ -210,14 +200,15 @@ impl<A, B> NoteBuilder<A, B> {
     }
 }
 
-impl<A> NoteBuilder<A, ZeroTags> {
-    /// Sets the "content" field according to Nip04 and adds the tag for receiver pubkey
+impl NoteBuilder<ZeroTags> {
+    /// Sets the "content" field according to Nip04 and adds the tag for receiver pubkey.
+    /// iv should be generated from a random source
     pub fn create_dm(
         mut self,
         content: &str,
         rcvr_pubkey: &str,
         iv: [u8; 16],
-    ) -> Result<NoteBuilder<A, OneTag>, errors::Error> {
+    ) -> Result<NoteBuilder<OneTag>, errors::Error> {
         let mut msg = [0_u8; 32];
         base16ct::lower::decode(&rcvr_pubkey, &mut msg)
             .map_err(|_| errors::Error::InvalidPubkey)?;
@@ -230,23 +221,9 @@ impl<A> NoteBuilder<A, ZeroTags> {
     }
 }
 
-impl<A> NoteBuilder<TimeNotSet, A> {
-    /// Must be called prior to build() to set the time of the note
-    pub fn created_at(mut self, created_at: u32) -> NoteBuilder<TimeSet, A> {
+impl<A> NoteBuilder<A> {
+    pub fn build(mut self, created_at: u32, aux_rnd: [u8; 32]) -> Result<Note, errors::Error> {
         self.note.created_at = created_at;
-        NoteBuilder {
-            build_status: BuildStatus {
-                time: TimeSet,
-                tags: self.build_status.tags,
-            },
-            keypair: self.keypair,
-            note: self.note,
-        }
-    }
-}
-
-impl<A> NoteBuilder<TimeSet, A> {
-    pub fn build(mut self, aux_rnd: [u8; 32]) -> Result<Note, errors::Error> {
         self.note.set_pubkey(&self.keypair.x_only_public_key().0)?;
         self.note.set_id()?;
         self.note.set_sig(&self.keypair, &aux_rnd)?;
@@ -256,17 +233,14 @@ impl<A> NoteBuilder<TimeSet, A> {
 
 impl Note {
     /// Returns a NoteBuilder
-    pub fn new_builder(privkey: &str) -> Result<NoteBuilder<TimeNotSet, ZeroTags>, errors::Error> {
+    pub fn new_builder(privkey: &str) -> Result<NoteBuilder<ZeroTags>, errors::Error> {
         let mut buf = [AlignedType::zeroed(); 64];
         let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
             .map_err(|_| errors::Error::Secp256k1Error)?;
         let key_pair: KeyPair = KeyPair::from_seckey_str(&sig_obj, privkey)
             .map_err(|_| errors::Error::InvalidPrivkey)?;
         Ok(NoteBuilder {
-            build_status: BuildStatus {
-                time: TimeNotSet,
-                tags: ZeroTags,
-            },
+            build_status: BuildStatus { tags: ZeroTags },
             keypair: key_pair,
             note: Note {
                 id: [0; 64],
@@ -628,8 +602,7 @@ mod tests {
         Note::new_builder(PRIVKEY)
             .unwrap()
             .content("esptest".into())
-            .created_at(1686880020)
-            .build([0; 32])
+            .build(1686880020, [0; 32])
             .expect("infallible")
     }
 
@@ -639,8 +612,7 @@ mod tests {
             .unwrap()
             .content("esptest".into())
             .add_tag("l,bitcoin".into())
-            .created_at(1686880020)
-            .build([0; 32])
+            .build(1686880020, [0; 32])
             .expect("infallible");
         let test = note.serialize_to_relay();
         let expected = br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"f5a693c9a4add3739a4186c0422f925981f75cb1f7a0adfc48852e54973415a6","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"ff68b2c739f6d19df47c5ae5f150895e11876458afcf8bf169636e55c2b6cce1230d0c54ce9869b555b3395018c1efdad5b4c5a4afbc2748e1f8c3a34da787ec","tags":[["l","bitcoin"]]}]"#;
