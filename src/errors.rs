@@ -14,4 +14,6 @@ pub enum Error {
     EventMissingField,
     TooManyTags,
     InternalError,
+    EncodeError,
+    Secp256k1Error,
 }

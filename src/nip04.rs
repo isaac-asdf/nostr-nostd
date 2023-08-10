@@ -23,11 +23,11 @@ pub fn encrypt(
     sk: &SecretKey,
     pk: &XOnlyPublicKey,
     text: &str,
+    iv: [u8; 16],
 ) -> Result<String<MAX_DM_SIZE>, Error> {
     let key: [u8; 32] = generate_shared_key(sk, pk)?;
     // let iv: [u8; 16] = secp256k1::rand::Rng();
     // let iv: [u8; 16] = b"O1zZfD9HPiig1yuZEWX7uQ";
-    let iv: [u8; 16] = [0; 16];
 
     let mut cipher = Aes256CbcEnc::new(&key.into(), &iv.into());
     let mut ciphertext = [16_u8; MAX_DM_SIZE];
@@ -178,7 +178,7 @@ mod tests {
         let pk = key_pair.x_only_public_key().0;
 
         let my_sk = SecretKey::from_str(MY_SKEY).expect("test");
-        let encrypted = encrypt(&my_sk, &pk, EXPCTD_MSG).expect("test");
+        let encrypted = encrypt(&my_sk, &pk, EXPCTD_MSG, [0; 16]).expect("test");
 
         let decrypted = decrypt(
             &key_pair.secret_key(),

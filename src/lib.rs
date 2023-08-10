@@ -216,20 +216,16 @@ impl<A> NoteBuilder<A, ZeroTags> {
         mut self,
         content: &str,
         rcvr_pubkey: &str,
+        iv: [u8; 16],
     ) -> Result<NoteBuilder<A, OneTag>, errors::Error> {
-        let pubkey = XOnlyPublicKey::from_slice(rcvr_pubkey.as_bytes())
+        let mut msg = [0_u8; 32];
+        base16ct::lower::decode(&rcvr_pubkey, &mut msg)
             .map_err(|_| errors::Error::InvalidPubkey)?;
-        let encrypted = nip04::encrypt(&self.keypair.secret_key(), &pubkey, content)
-            .map_err(|_| errors::Error::InternalError)?;
+        let pubkey = XOnlyPublicKey::from_slice(&msg).map_err(|_| errors::Error::InvalidPubkey)?;
+        let encrypted = nip04::encrypt(&self.keypair.secret_key(), &pubkey, content, iv)?;
         self.note.content = Some(encrypted);
-        let mut tag = String::from(r#"["p","#);
-        let mut pk_text: [u8; 64] = [0; 64];
-        base16ct::lower::encode(&pubkey.serialize(), &mut pk_text)
-            .map_err(|_| errors::Error::InternalError)?;
-        pk_text.iter().for_each(|c| {
-            tag.push(*c as char).expect("impossible");
-        });
-        tag.push_str(r#""]"#).expect("impossible");
+        let mut tag = String::from("p,");
+        tag.push_str(rcvr_pubkey).expect("impossible");
         Ok(self.add_tag(tag))
     }
 }
@@ -263,7 +259,7 @@ impl Note {
     pub fn new_builder(privkey: &str) -> Result<NoteBuilder<TimeNotSet, ZeroTags>, errors::Error> {
         let mut buf = [AlignedType::zeroed(); 64];
         let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
-            .map_err(|_| errors::Error::InternalPubkeyError)?;
+            .map_err(|_| errors::Error::Secp256k1Error)?;
         let key_pair: KeyPair = KeyPair::from_seckey_str(&sig_obj, privkey)
             .map_err(|_| errors::Error::InvalidPrivkey)?;
         Ok(NoteBuilder {
@@ -386,7 +382,7 @@ impl Note {
     fn set_pubkey(&mut self, pubkey: &XOnlyPublicKey) -> Result<(), errors::Error> {
         let pubkey = &pubkey.serialize();
         base16ct::lower::encode(pubkey, &mut self.pubkey)
-            .map_err(|_| errors::Error::InternalPubkeyError)?;
+            .map_err(|_| errors::Error::EncodeError)?;
         Ok(())
     }
 
@@ -395,8 +391,7 @@ impl Note {
         let mut hasher = Sha256::new();
         hasher.update(&remaining[..len]);
         let results = hasher.finalize();
-        base16ct::lower::encode(&results, &mut self.id)
-            .map_err(|_| errors::Error::InternalPubkeyError)?;
+        base16ct::lower::encode(&results, &mut self.id).map_err(|_| errors::Error::EncodeError)?;
         Ok(())
     }
 
@@ -404,7 +399,7 @@ impl Note {
         // figure out what size we need and why
         let mut buf = [AlignedType::zeroed(); 64];
         let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
-            .map_err(|_| errors::Error::InternalSigningError)?;
+            .map_err(|_| errors::Error::Secp256k1Error)?;
 
         let mut msg = [0_u8; 32];
         base16ct::lower::decode(&self.id, &mut msg)
@@ -414,7 +409,7 @@ impl Note {
 
         let sig = sig_obj.sign_schnorr_with_aux_rand(&message, key_pair, aux_rnd);
         base16ct::lower::encode(sig.as_ref(), &mut self.sig)
-            .map_err(|_| errors::Error::InternalSigningError)?;
+            .map_err(|_| errors::Error::EncodeError)?;
         Ok(())
     }
 
@@ -592,7 +587,7 @@ impl Note {
     pub fn read_dm(&self, privkey: &str) -> Result<String<MAX_DM_SIZE>, errors::Error> {
         let mut buf = [AlignedType::zeroed(); 64];
         let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
-            .map_err(|_| errors::Error::InternalPubkeyError)?;
+            .map_err(|_| errors::Error::Secp256k1Error)?;
         let key_pair: KeyPair = KeyPair::from_seckey_str(&sig_obj, privkey)
             .map_err(|_| errors::Error::InvalidPrivkey)?;
         let sk = key_pair.secret_key();
@@ -603,10 +598,8 @@ impl Note {
             .first()
             .ok_or(errors::Error::MalformedContent)?;
         let mut msg = [0_u8; 32];
-        base16ct::lower::decode(&pk_tag, &mut msg)
-            .map_err(|_| errors::Error::InternalSigningError)?;
-        let pk =
-            XOnlyPublicKey::from_slice(&msg).map_err(|_| errors::Error::InternalPubkeyError)?;
+        base16ct::lower::decode(&pk_tag, &mut msg).map_err(|_| errors::Error::EncodeError)?;
+        let pk = XOnlyPublicKey::from_slice(&msg).map_err(|_| errors::Error::InvalidPubkey)?;
         nip04::decrypt(
             &sk,
             &pk,
