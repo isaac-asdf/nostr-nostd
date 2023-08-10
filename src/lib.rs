@@ -1,5 +1,5 @@
 #![no_std]
-//! Implementation of [Nostr](https://nostr.com/) note creation for a #![no_std] environment.
+//! Implementation of [Nostr](https://nostr.com/) a #![no_std] environment. It supports note creation and parsing relay responses.
 //! An example project using an esp32 can be seen [here](https://github.com/isaac-asdf/esp32-nostr-client).
 //!
 //! # Example
