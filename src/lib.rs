@@ -331,6 +331,7 @@ impl Note {
             hash_str[count] = *bs;
             count += 1;
         });
+        let mut tags_present = false;
         self.tags.iter().for_each(|tag| {
             // add opening [
             hash_str[count] = 91;
@@ -359,9 +360,12 @@ impl Note {
             // add closing ,
             hash_str[count] = 44;
             count += 1;
+            tags_present = true;
         });
-        // remove last comma
-        count -= 1;
+        if tags_present {
+            // remove last comma
+            count -= 1;
+        }
         br#"],""#.iter().for_each(|bs| {
             hash_str[count] = *bs;
             count += 1;
@@ -487,6 +491,7 @@ impl Note {
                 .push(*bs)
                 .expect("Impossible due to size constraints of content, tags");
         });
+        let mut tags_present = false;
         self.tags.iter().for_each(|tag| {
             // add opening [
             output.push(91).expect("impossible");
@@ -507,9 +512,12 @@ impl Note {
             output.push(93).expect("impossible");
             // add a comma separator
             output.push(44).expect("impossible");
+            tags_present = true;
         });
-        // remove last comma
-        output.pop().expect("impossible");
+        if tags_present {
+            // remove last comma
+            output.pop().expect("impossible");
+        }
         br#"]}"#.iter().for_each(|bs| {
             output
                 .push(*bs)
