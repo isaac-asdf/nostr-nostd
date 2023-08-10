@@ -51,14 +51,18 @@ pub fn encrypt(
 
     let encode_this = &ciphertext[0..total_blocks * 16];
     let mut enc_buf = [0u8; MAX_DM_SIZE];
-    let encoded = Base64::encode(encode_this, &mut enc_buf).map_err(|_| Error::InternalError)?;
+    let encoded = Base64::encode(encode_this, &mut enc_buf).map_err(|_| Error::EncodeError)?;
 
     let mut enc_buf = [0u8; 32];
-    let iv_str = Base64::encode(&iv, &mut enc_buf).map_err(|_| Error::InternalError)?;
+    let iv_str = Base64::encode(&iv, &mut enc_buf).map_err(|_| Error::EncodeError)?;
 
-    let mut output = String::from_str(&encoded).map_err(|_| Error::InternalError)?;
-    output.push_str("?iv=").map_err(|_| Error::InternalError)?;
-    output.push_str(&iv_str).map_err(|_| Error::InternalError)?;
+    let mut output = String::from_str(&encoded).map_err(|_| Error::ContentOverflow)?;
+    output
+        .push_str("?iv=")
+        .map_err(|_| Error::ContentOverflow)?;
+    output
+        .push_str(&iv_str)
+        .map_err(|_| Error::ContentOverflow)?;
     Ok(output)
 }
 
@@ -94,11 +98,11 @@ pub fn decrypt(
     let mut decrypted_buf = [0_u8; MAX_DM_SIZE];
 
     let encrypted_content =
-        Base64::decode(parsed_content[0], &mut decrypted_buf).map_err(|_| Error::InternalError)?;
+        Base64::decode(parsed_content[0], &mut decrypted_buf).map_err(|_| Error::EncodeError)?;
 
     let mut decrypted_iv = [0_u8; MAX_DM_SIZE];
     let iv =
-        Base64::decode(parsed_content[1], &mut decrypted_iv).map_err(|_| Error::InternalError)?;
+        Base64::decode(parsed_content[1], &mut decrypted_iv).map_err(|_| Error::EncodeError)?;
     let key: [u8; 32] = generate_shared_key(sk, pk)?;
 
     let mut cipher = Aes256CbcDec::new(&key.into(), iv.into());
@@ -126,7 +130,9 @@ pub fn decrypt(
     let mut output = String::new();
 
     utf_8.iter().try_for_each(|b| {
-        output.push(*b as char).map_err(|_| Error::InternalError)?;
+        output
+            .push(*b as char)
+            .map_err(|_| Error::ContentOverflow)?;
         Ok(())
     })?;
 
@@ -146,9 +152,7 @@ fn generate_shared_key(sk: &SecretKey, pk: &XOnlyPublicKey) -> Result<[u8; 32], 
 fn normalize_schnorr_pk(schnorr_pk: &XOnlyPublicKey) -> Result<PublicKey, Error> {
     let mut pk: String<66> = String::from("02");
     let mut bytes = [0_u8; 64];
-    base16ct::lower::encode(&schnorr_pk.serialize(), &mut bytes)
-        .map_err(|_| Error::InternalPubkeyError)?;
-    // pk.push_str(&schnor_key).map_err(|_| Error::InternalError)?;
+    base16ct::lower::encode(&schnorr_pk.serialize(), &mut bytes).map_err(|_| Error::EncodeError)?;
     bytes.iter().try_for_each(|b| {
         let c = char::from_u32(*b as u32).ok_or(Error::InternalError)?;
         pk.push(c).map_err(|_| Error::InternalError)?;
