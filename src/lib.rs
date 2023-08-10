@@ -1,4 +1,4 @@
-// #![no_std]
+#![no_std]
 //! Implementation of [Nostr](https://nostr.com/) note creation for a #![no_std] environment.
 //! An example project using an esp32 can be seen [here](https://github.com/isaac-asdf/esp32-nostr-client).
 //!
@@ -212,20 +212,25 @@ impl<A, B> NoteBuilder<A, B> {
 
 impl<A> NoteBuilder<A, ZeroTags> {
     /// Sets the "content" field according to Nip04 and adds the tag for receiver pubkey
-    pub fn create_dm(mut self, content: &str, rcvr_pubkey: &str) -> NoteBuilder<A, OneTag> {
-        let pubkey = XOnlyPublicKey::from_slice(rcvr_pubkey.as_bytes()).unwrap();
-        let encrypted = nip04::encrypt(&self.keypair.secret_key(), &pubkey, content).unwrap();
+    pub fn create_dm(
+        mut self,
+        content: &str,
+        rcvr_pubkey: &str,
+    ) -> Result<NoteBuilder<A, OneTag>, errors::Error> {
+        let pubkey = XOnlyPublicKey::from_slice(rcvr_pubkey.as_bytes())
+            .map_err(|_| errors::Error::InvalidPubkey)?;
+        let encrypted = nip04::encrypt(&self.keypair.secret_key(), &pubkey, content)
+            .map_err(|_| errors::Error::InternalError)?;
         self.note.content = Some(encrypted);
         let mut tag = String::from(r#"["p","#);
         let mut pk_text: [u8; 64] = [0; 64];
         base16ct::lower::encode(&pubkey.serialize(), &mut pk_text)
-            .map_err(|_| errors::Error::InternalPubkeyError)
-            .unwrap();
+            .map_err(|_| errors::Error::InternalError)?;
         pk_text.iter().for_each(|c| {
-            tag.push(*c as char).unwrap();
+            tag.push(*c as char).expect("impossible");
         });
-        tag.push_str(r#""]"#).unwrap();
-        self.add_tag(tag)
+        tag.push_str(r#""]"#).expect("impossible");
+        Ok(self.add_tag(tag))
     }
 }
 
@@ -354,7 +359,13 @@ impl Note {
             // add closing ]
             hash_str[count] = 93;
             count += 1;
+
+            // add closing ,
+            hash_str[count] = 44;
+            count += 1;
         });
+        // remove last comma
+        count -= 1;
         br#"],""#.iter().for_each(|bs| {
             hash_str[count] = *bs;
             count += 1;
@@ -482,26 +493,28 @@ impl Note {
                 .expect("Impossible due to size constraints of content, tags");
         });
         self.tags.iter().for_each(|tag| {
-            self.tags.iter().for_each(|tag| {
-                // add opening [
-                output.push(91).expect("impossible");
-                tag.split(",").for_each(|element| {
-                    // add opening "
-                    output.push(34).expect("impossible");
-                    element.as_bytes().iter().for_each(|bs| {
-                        output.push(*bs).expect("impossible");
-                    });
-                    // add closing "
-                    output.push(34).expect("impossible");
-                    // add a comma separator
-                    output.push(44).expect("impossible");
+            // add opening [
+            output.push(91).expect("impossible");
+            tag.split(",").for_each(|element| {
+                // add opening "
+                output.push(34).expect("impossible");
+                element.as_bytes().iter().for_each(|bs| {
+                    output.push(*bs).expect("impossible");
                 });
-                // remove last comma
-                output.pop().expect("impossible");
-                // add closing ]
-                output.push(93).expect("impossible");
+                // add closing "
+                output.push(34).expect("impossible");
+                // add a comma separator
+                output.push(44).expect("impossible");
             });
+            // remove last comma
+            output.pop().expect("impossible");
+            // add closing ]
+            output.push(93).expect("impossible");
+            // add a comma separator
+            output.push(44).expect("impossible");
         });
+        // remove last comma
+        output.pop().expect("impossible");
         br#"]}"#.iter().for_each(|bs| {
             output
                 .push(*bs)
@@ -556,10 +569,13 @@ impl Note {
 
     /// Get associated values with a given tag name.
     /// Returns up to 5 instances for the searched for label.
-    pub fn get_tag(&self, tag: &str) -> Vec<Vec<&str, 5>, 5> {
+    pub fn get_tag(&self, tag: &str) -> Result<Vec<Vec<&str, 5>, 5>, errors::Error> {
         let mut search_tag: String<10> = String::from(tag);
-        search_tag.push_str(",").unwrap();
-        self.tags
+        search_tag
+            .push_str(",")
+            .map_err(|_| errors::Error::TagNameTooLong)?;
+        Ok(self
+            .tags
             .iter()
             .filter(|my_tag| my_tag.starts_with(search_tag.as_str()))
             // each tag will look like tag_name,val1,val2,etc...
@@ -569,7 +585,7 @@ impl Note {
                 splits.next();
                 splits.collect()
             })
-            .collect()
+            .collect())
     }
 
     /// Decode an encrypted DM
@@ -580,15 +596,25 @@ impl Note {
         let key_pair: KeyPair = KeyPair::from_seckey_str(&sig_obj, privkey)
             .map_err(|_| errors::Error::InvalidPrivkey)?;
         let sk = key_pair.secret_key();
-        let pk_tag = self.get_tag("p");
-        let pk_tag = *pk_tag.first().unwrap().first().unwrap();
-        // println!("{:?}", pk_tag);
+        let pk_tag = self.get_tag("p")?;
+        let pk_tag = *pk_tag
+            .first()
+            .ok_or(errors::Error::MalformedContent)?
+            .first()
+            .ok_or(errors::Error::MalformedContent)?;
         let mut msg = [0_u8; 32];
         base16ct::lower::decode(&pk_tag, &mut msg)
             .map_err(|_| errors::Error::InternalSigningError)?;
         let pk =
             XOnlyPublicKey::from_slice(&msg).map_err(|_| errors::Error::InternalPubkeyError)?;
-        nip04::decrypt(&sk, &pk, self.content.as_ref().unwrap().as_str())
+        nip04::decrypt(
+            &sk,
+            &pk,
+            self.content
+                .as_ref()
+                .ok_or(errors::Error::MalformedContent)?
+                .as_str(),
+        )
     }
 }
 
@@ -685,9 +711,8 @@ mod tests {
     fn test_tags() {
         let dm_rcv: &str = r#"{"content":"sZhES/uuV1uMmt9neb6OQw6mykdLYerAnTN+LodleSI=?iv=eM0mGFqFhxmmMwE4YPsQMQ==","created_at":1691110186,"id":"517a5f0f29f5037d763bbd5fbe96c9082c1d39eca917aa22b514c5effc36bab9","kind":4,"pubkey":"ed984a5438492bdc75860aad15a59f8e2f858792824d615401fb49d79c2087b0","sig":"3097de7d5070b892b81b245a5b276eccd7cb283a29a934a71af4960188e55e87d639b774cc331eb9f94ea7c46373c52b8ab39bfee75fe4bb11a1dd4c187e1f3e","tags":[["p","098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"]]}"#;
         let note = Note::try_from(dm_rcv).unwrap();
-        // println!("{:?}", note.tags);
 
-        let tags = note.get_tag("p");
+        let tags = note.get_tag("p").unwrap();
         let pubkey = tags.first().unwrap().first().unwrap();
         assert_eq!(
             *pubkey,
@@ -697,9 +722,6 @@ mod tests {
 
     #[test]
     fn test_get_tag() {
-        let dm_rcv: &str = r#"{"content":"sZhES/uuV1uMmt9neb6OQw6mykdLYerAnTN+LodleSI=?iv=eM0mGFqFhxmmMwE4YPsQMQ==","created_at":1691110186,"id":"517a5f0f29f5037d763bbd5fbe96c9082c1d39eca917aa22b514c5effc36bab9","kind":4,"pubkey":"ed984a5438492bdc75860aad15a59f8e2f858792824d615401fb49d79c2087b0","sig":"3097de7d5070b892b81b245a5b276eccd7cb283a29a934a71af4960188e55e87d639b774cc331eb9f94ea7c46373c52b8ab39bfee75fe4bb11a1dd4c187e1f3e","tags":[["p","098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"]]}"#;
-        let note = Note::try_from(dm_rcv).unwrap();
-        // println!("json:{:?}", note.tags);
         let mut tags = Vec::new();
         tags.push(String::from("p,test_pubkey")).unwrap();
         let note = Note {
@@ -711,11 +733,9 @@ mod tests {
             content: None,
             sig: [0; 128],
         };
-        // println!("self:{:?}", note.tags);
-        let tags = note.get_tag("p");
+        let tags = note.get_tag("p").unwrap();
         let pubkey = tags.first().unwrap().first().unwrap();
         assert_eq!(*pubkey, "test_pubkey");
-        // assert_eq!(*pubkey, "");
     }
 
     #[test]
@@ -732,7 +752,7 @@ mod tests {
             content: None,
             sig: [0; 128],
         };
-        let binding = note.get_tag("l");
+        let binding = note.get_tag("l").unwrap();
         let mut tags = binding.iter();
         let label = tags.next().unwrap();
         let mut labels = label.iter();

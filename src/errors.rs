@@ -1,5 +1,10 @@
 #[derive(PartialEq, Debug)]
 pub enum Error {
+    InvalidPubkey,
+    InvalidPrivkey,
+    InternalPubkeyError,
+    InternalSigningError,
+    TagNameTooLong,
     UnknownKind,
     InvalidType,
     TypeNotAccepted,
@@ -8,8 +13,5 @@ pub enum Error {
     EventNotValid,
     EventMissingField,
     TooManyTags,
-    InternalPubkeyError,
-    InternalSigningError,
-    InvalidPrivkey,
     InternalError,
 }
