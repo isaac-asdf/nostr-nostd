@@ -222,6 +222,7 @@ impl NoteBuilder<ZeroTags> {
 }
 
 impl<A> NoteBuilder<A> {
+    /// Set the 'created_at' and sign the note.
     pub fn build(mut self, created_at: u32, aux_rnd: [u8; 32]) -> Result<Note, errors::Error> {
         self.note.created_at = created_at;
         self.note.set_pubkey(&self.keypair.x_only_public_key().0)?;
