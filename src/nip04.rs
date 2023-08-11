@@ -26,8 +26,6 @@ pub fn encrypt(
     iv: [u8; 16],
 ) -> Result<String<MAX_DM_SIZE>, Error> {
     let key: [u8; 32] = generate_shared_key(sk, pk)?;
-    // let iv: [u8; 16] = secp256k1::rand::Rng();
-    // let iv: [u8; 16] = b"O1zZfD9HPiig1yuZEWX7uQ";
 
     let mut cipher = Aes256CbcEnc::new(&key.into(), &iv.into());
     let mut ciphertext = [16_u8; MAX_DM_SIZE];
