@@ -29,6 +29,7 @@ use sha2::{Digest, Sha256};
 pub mod errors;
 mod nip04;
 mod parse_json;
+pub mod relay_query;
 pub mod relay_responses;
 
 const TAG_SIZE: usize = 150;

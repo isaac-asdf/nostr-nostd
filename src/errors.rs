@@ -18,4 +18,5 @@ pub enum Error {
     InternalError,
     EncodeError,
     Secp256k1Error,
+    QueryBuilderOverflow,
 }
