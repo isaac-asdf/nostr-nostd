@@ -131,30 +131,35 @@ impl TagCount for FiveTags {}
 impl AddTag for ZeroTags {
     type Next = OneTag;
     // Implement the next method to return a new MyType instance
+    #[inline]
     fn next(self) -> OneTag {
         OneTag
     }
 }
 impl AddTag for OneTag {
     type Next = TwoTags;
+    #[inline]
     fn next(self) -> TwoTags {
         TwoTags
     }
 }
 impl AddTag for TwoTags {
     type Next = ThreeTags;
+    #[inline]
     fn next(self) -> ThreeTags {
         ThreeTags
     }
 }
 impl AddTag for ThreeTags {
     type Next = FourTags;
+    #[inline]
     fn next(self) -> FourTags {
         FourTags
     }
 }
 impl AddTag for FourTags {
     type Next = FiveTags;
+    #[inline]
     fn next(self) -> FiveTags {
         FiveTags
     }
@@ -180,6 +185,7 @@ where
     /// Adds a new tag to the note.
     /// The maximum number of tags currently allowed is 5.
     /// Attempts to add too many tags will be a compilation error.
+    #[inline]
     pub fn add_tag(mut self, tag: String<TAG_SIZE>) -> NoteBuilder<NextAddTag> {
         let next_tags = self.build_status.tags.next();
         self.note
@@ -210,26 +216,8 @@ impl<B> NoteBuilder<B> {
 }
 
 impl NoteBuilder<ZeroTags> {
-    /// Sets the "content" field according to NIP04 and adds the tag for receiver pubkey.
-    /// iv should be generated from a random source
-    pub fn create_dm(
-        mut self,
-        content: &str,
-        rcvr_pubkey: &str,
-        iv: [u8; 16],
-    ) -> Result<NoteBuilder<OneTag>, errors::Error> {
-        let mut msg = [0_u8; 32];
-        base16ct::lower::decode(&rcvr_pubkey, &mut msg)
-            .map_err(|_| errors::Error::InvalidPubkey)?;
-        let pubkey = XOnlyPublicKey::from_slice(&msg).map_err(|_| errors::Error::InvalidPubkey)?;
-        let encrypted = nip04::encrypt(&self.keypair.secret_key(), &pubkey, content, iv)?;
-        self.note.content = Some(encrypted);
-        let mut tag = String::from("p,");
-        tag.push_str(rcvr_pubkey).expect("impossible");
-        Ok(self.add_tag(tag))
-    }
-
     /// Creates an auth note per NIP42
+    #[inline]
     pub fn create_auth(
         mut self,
         auth: &AuthMessage,
@@ -247,16 +235,38 @@ impl NoteBuilder<ZeroTags> {
             .map_err(|_| errors::Error::ContentOverflow)?;
         tags.push(relay_str).expect("impossible");
         self.note.tags = tags;
+        self.note.kind = NoteKinds::Auth;
         Ok(NoteBuilder {
             keypair: self.keypair,
             note: self.note,
             build_status: BuildStatus { tags: TwoTags },
         })
     }
+
+    /// Sets the "content" field according to NIP04 and adds the tag for receiver pubkey.
+    /// iv should be generated from a random source
+    #[inline]
+    pub fn create_dm(
+        mut self,
+        content: &str,
+        rcvr_pubkey: &str,
+        iv: [u8; 16],
+    ) -> Result<NoteBuilder<OneTag>, errors::Error> {
+        let mut msg = [0_u8; 32];
+        base16ct::lower::decode(&rcvr_pubkey, &mut msg)
+            .map_err(|_| errors::Error::InvalidPubkey)?;
+        let pubkey = XOnlyPublicKey::from_slice(&msg).map_err(|_| errors::Error::InvalidPubkey)?;
+        let encrypted = nip04::encrypt(&self.keypair.secret_key(), &pubkey, content, iv)?;
+        self.note.content = Some(encrypted);
+        let mut tag = String::from("p,");
+        tag.push_str(rcvr_pubkey).expect("impossible");
+        Ok(self.add_tag(tag))
+    }
 }
 
 impl<A> NoteBuilder<A> {
     /// Set the 'created_at' and sign the note.
+    #[inline]
     pub fn build(mut self, created_at: u32, aux_rnd: [u8; 32]) -> Result<Note, errors::Error> {
         self.note.created_at = created_at;
         self.note.set_pubkey(&self.keypair.x_only_public_key().0)?;
@@ -267,7 +277,8 @@ impl<A> NoteBuilder<A> {
 }
 
 impl Note {
-    /// Returns a NoteBuilder
+    /// Returns a NoteBuilder, can error if the privkey is invalid
+    #[inline]
     pub fn new_builder(privkey: &str) -> Result<NoteBuilder<ZeroTags>, errors::Error> {
         let mut buf = [AlignedType::zeroed(); 64];
         let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
@@ -537,6 +548,7 @@ impl Note {
     }
 
     /// Serializes the note for sending to relay
+    #[inline]
     pub fn serialize_to_relay(self, msg_type: ClientMsgKinds) -> Vec<u8, 1000> {
         let wire_lead = match msg_type {
             ClientMsgKinds::Event => r#"["EVENT","#,
@@ -565,6 +577,7 @@ impl Note {
 
     /// Get associated values with a given tag name.
     /// Returns up to 5 instances for the searched for label.
+    #[inline]
     pub fn get_tag(&self, tag: &str) -> Result<Vec<Vec<&str, 5>, 5>, errors::Error> {
         let mut search_tag: String<10> = String::from(tag);
         search_tag
@@ -585,6 +598,7 @@ impl Note {
     }
 
     /// Decode an encrypted DM
+    #[inline]
     pub fn read_dm(&self, privkey: &str) -> Result<String<MAX_DM_SIZE>, errors::Error> {
         let mut buf = [AlignedType::zeroed(); 64];
         let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
@@ -770,7 +784,7 @@ mod tests {
             .build(1691712199, [0; 32])
             .unwrap();
 
-        let expected = br#"{"content":"","created_at":1691712199,"id":"3c70d4a2dd4e1b422e7125a7724f07d9f92989c8001cf4035028a4a12d75e668","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"b4bbe0a3f65d026b9467639f10c86db23f2c09fbc728eeec3653369fdb1be096b6ac80ef51681357a51974bcc7734ee7728ea4de3cc55dc5aaa51653824f870f","tags":[["challenge","challenge_me"],["relay","wss://relay.damus.io"]]}"#;
+        let expected = br#"{"content":"","created_at":1691712199,"id":"762b497576a41636c41eb5c74c0eb80894ecb2444c3e5117da0d00d9870d914a","kind":22242,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"afb892c683222936537ac1ea1ecdade47adf572e96773dfc6ca021d929d3485ecd7d086b14503e545312f61bd8ffdbd48887cd27b3ab2e4f70aab62a4a1afd1b","tags":[["challenge","challenge_me"],["relay","wss://relay.damus.io"]]}"#;
         assert_eq!(note.to_json(), expected);
     }
 }
