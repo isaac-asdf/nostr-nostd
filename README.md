@@ -17,7 +17,8 @@ A demo project can be seen [here](https://github.com/isaac-asdf/esp32-nostr-clie
 
 # Future improvements
 
-- Support more note kinds, investigate Kind 4 for private sending in an IOT context
+- Support more note kinds
+- Investigate GenericArray to make length of content able to be larger without always filling memory
 
 [//]: # "badges"
 [crate-image]: https://buildstats.info/crate/nostr-nostd
