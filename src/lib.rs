@@ -4,7 +4,7 @@
 //!
 //! # Example
 //! ```
-//! use nostr_nostd::{Note, String};
+//! use nostr_nostd::{Note, String, ClientMsgKinds};
 //! let privkey = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
 //! let content: String<400> = String::from("Hello, World!");
 //! let tag: String<150> = String::from("relay,wss://relay.example.com/");
@@ -17,11 +17,12 @@
 //!     .add_tag(tag)
 //!     .build(1686880020, aux_rand)
 //!     .unwrap();
-//! let msg = note.serialize_to_relay();
+//! let msg = note.serialize_to_relay(ClientMsgKinds::Event);
 //! ```
 //!
 
 pub use heapless::{String, Vec};
+use relay_responses::AuthMessage;
 use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message, XOnlyPublicKey};
 use sha2::{Digest, Sha256};
 
@@ -43,6 +44,14 @@ pub enum NoteKinds {
     DM = 4,
     /// Ephemeral event for authentication to relay
     Auth = 22242,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum ClientMsgKinds {
+    Event,
+    Req,
+    Auth,
+    Close,
 }
 
 impl TryFrom<u16> for NoteKinds {
@@ -201,7 +210,7 @@ impl<B> NoteBuilder<B> {
 }
 
 impl NoteBuilder<ZeroTags> {
-    /// Sets the "content" field according to Nip04 and adds the tag for receiver pubkey.
+    /// Sets the "content" field according to NIP04 and adds the tag for receiver pubkey.
     /// iv should be generated from a random source
     pub fn create_dm(
         mut self,
@@ -218,6 +227,31 @@ impl NoteBuilder<ZeroTags> {
         let mut tag = String::from("p,");
         tag.push_str(rcvr_pubkey).expect("impossible");
         Ok(self.add_tag(tag))
+    }
+
+    /// Creates an auth note per NIP42
+    pub fn create_auth(
+        mut self,
+        auth: &AuthMessage,
+        relay: &str,
+    ) -> Result<NoteBuilder<TwoTags>, errors::Error> {
+        let mut tags = Vec::new();
+        let mut challenge_string: String<TAG_SIZE> = String::from("challenge,");
+        challenge_string
+            .push_str(&auth.challenge_string)
+            .map_err(|_| errors::Error::ContentOverflow)?;
+        tags.push(challenge_string).expect("impossible");
+        let mut relay_str: String<TAG_SIZE> = String::from("relay,");
+        relay_str
+            .push_str(relay)
+            .map_err(|_| errors::Error::ContentOverflow)?;
+        tags.push(relay_str).expect("impossible");
+        self.note.tags = tags;
+        Ok(NoteBuilder {
+            keypair: self.keypair,
+            note: self.note,
+            build_status: BuildStatus { tags: TwoTags },
+        })
     }
 }
 
@@ -502,33 +536,17 @@ impl Note {
         output
     }
 
-    /// Serializes the note as ["EVENT", {note}]
-    pub fn serialize_to_relay(self) -> Vec<u8, 1000> {
+    /// Serializes the note for sending to relay
+    pub fn serialize_to_relay(self, msg_type: ClientMsgKinds) -> Vec<u8, 1000> {
+        let wire_lead = match msg_type {
+            ClientMsgKinds::Event => r#"["EVENT","#,
+            ClientMsgKinds::Req => r#"["REQ","#,
+            ClientMsgKinds::Auth => r#"["AUTH","#,
+            ClientMsgKinds::Close => r#"["CLOSE","#,
+        };
         let mut output: Vec<u8, 1000> = Vec::new();
         // fill in output
-        br#"["EVENT","#.iter().for_each(|bs| {
-            output
-                .push(*bs)
-                .expect("Impossible due to size constraints of content, tags");
-        });
-        let json = self.to_json();
-        json.iter().for_each(|bs| {
-            output
-                .push(*bs)
-                .expect("Impossible due to size constraints of content, tags");
-        });
-        output
-            .push(93)
-            .expect("Impossible due to size constraints of content, tags");
-        output
-    }
-
-    /// Serializes the note as ["AUTH", {note}]
-    /// For use with NoteKinds::Auth
-    pub fn send_auth_to_relay(self) -> Vec<u8, 1000> {
-        let mut output: Vec<u8, 1000> = Vec::new();
-        // fill in output
-        br#"["AUTH","#.iter().for_each(|bs| {
+        wire_lead.as_bytes().iter().for_each(|bs| {
             output
                 .push(*bs)
                 .expect("Impossible due to size constraints of content, tags");
@@ -615,7 +633,7 @@ mod tests {
             .add_tag("l,bitcoin".into())
             .build(1686880020, [0; 32])
             .expect("infallible");
-        let test = note.serialize_to_relay();
+        let test = note.serialize_to_relay(ClientMsgKinds::Event);
         let expected = br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"f5a693c9a4add3739a4186c0422f925981f75cb1f7a0adfc48852e54973415a6","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"ff68b2c739f6d19df47c5ae5f150895e11876458afcf8bf169636e55c2b6cce1230d0c54ce9869b555b3395018c1efdad5b4c5a4afbc2748e1f8c3a34da787ec","tags":[["l","bitcoin"]]}]"#;
         assert_eq!(test, expected);
     }
@@ -669,7 +687,7 @@ mod tests {
     fn serialize_to_relay_test() {
         let output =  br#"["EVENT",{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}]"#;
         let note = get_note();
-        let msg = note.serialize_to_relay();
+        let msg = note.serialize_to_relay(ClientMsgKinds::Event);
         assert_eq!(&msg, output);
     }
 
@@ -736,5 +754,23 @@ mod tests {
         let label = tags.next().unwrap();
         let mut labels = label.iter();
         assert_eq!(*labels.next().unwrap(), "ignore the other label");
+    }
+
+    #[test]
+    fn test_auth_msg() {
+        let note = Note::new_builder(PRIVKEY)
+            .unwrap()
+            .create_auth(
+                &AuthMessage {
+                    challenge_string: "challenge_me".into(),
+                },
+                "wss://relay.damus.io",
+            )
+            .unwrap()
+            .build(1691712199, [0; 32])
+            .unwrap();
+
+        let expected = br#"{"content":"","created_at":1691712199,"id":"3c70d4a2dd4e1b422e7125a7724f07d9f92989c8001cf4035028a4a12d75e668","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"b4bbe0a3f65d026b9467639f10c86db23f2c09fbc728eeec3653369fdb1be096b6ac80ef51681357a51974bcc7734ee7728ea4de3cc55dc5aaa51653824f870f","tags":[["challenge","challenge_me"],["relay","wss://relay.damus.io"]]}"#;
+        assert_eq!(note.to_json(), expected);
     }
 }

@@ -1,3 +1,4 @@
+/// Parse relay responses
 use heapless::String;
 
 use crate::{errors::Error, Note};
@@ -19,8 +20,8 @@ pub enum ResponseTypes {
 }
 
 #[derive(Debug, PartialEq)]
-struct AuthMessage {
-    challenge_string: String<CHALLENGE_STRING_SIZE>,
+pub struct AuthMessage {
+    pub challenge_string: String<CHALLENGE_STRING_SIZE>,
 }
 
 #[derive(Debug, PartialEq)]
