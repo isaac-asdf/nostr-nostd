@@ -42,6 +42,8 @@ pub enum NoteKinds {
     ShortNote,
     /// DM
     DM,
+    /// IOT Event,
+    IOT,
     /// Ephemeral event for authentication to relay
     Auth,
     /// Regular Events (must be between 1000 and <=9999)
@@ -56,29 +58,6 @@ pub enum NoteKinds {
     Custom(u16),
 }
 
-impl From<u16> for NoteKinds {
-    fn from(value: u16) -> Self {
-        match value {
-            1 => NoteKinds::ShortNote,
-            4 => NoteKinds::DM,
-            22242 => NoteKinds::Auth,
-            x if (1_000..10_000).contains(&x) => NoteKinds::Regular(x as u16),
-            x if (10_000..20_000).contains(&x) => NoteKinds::Replaceable(x as u16),
-            x if (20_000..30_000).contains(&x) => NoteKinds::Ephemeral(x as u16),
-            x if (30_000..40_000).contains(&x) => NoteKinds::ParameterizedReplaceable(x as u16),
-            x => NoteKinds::Custom(x),
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum ClientMsgKinds {
-    Event,
-    Req,
-    Auth,
-    Close,
-}
-
 impl NoteKinds {
     pub fn serialize(&self) -> [u8; 10] {
         // will ignore large bytes when serializing
@@ -87,6 +66,7 @@ impl NoteKinds {
         let mut n: u16 = match self {
             NoteKinds::ShortNote => 1,
             NoteKinds::DM => 4,
+            NoteKinds::IOT => 5732,
             NoteKinds::Auth => 22242,
             NoteKinds::Regular(val) => *val,
             NoteKinds::Replaceable(val) => *val,
@@ -103,6 +83,30 @@ impl NoteKinds {
 
         buffer
     }
+}
+
+impl From<u16> for NoteKinds {
+    fn from(value: u16) -> Self {
+        match value {
+            1 => NoteKinds::ShortNote,
+            4 => NoteKinds::DM,
+            5732 => NoteKinds::IOT,
+            22242 => NoteKinds::Auth,
+            x if (1_000..10_000).contains(&x) => NoteKinds::Regular(x as u16),
+            x if (10_000..20_000).contains(&x) => NoteKinds::Replaceable(x as u16),
+            x if (20_000..30_000).contains(&x) => NoteKinds::Ephemeral(x as u16),
+            x if (30_000..40_000).contains(&x) => NoteKinds::ParameterizedReplaceable(x as u16),
+            x => NoteKinds::Custom(x),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum ClientMsgKinds {
+    Event,
+    Req,
+    Auth,
+    Close,
 }
 
 /// Representation of Nostr Note
