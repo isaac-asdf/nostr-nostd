@@ -59,23 +59,22 @@ impl Query {
     #[inline]
     pub fn get_my_dms(&mut self, privkey: &str) -> Result<(), errors::Error> {
         let mut buf = [AlignedType::zeroed(); 64];
-        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
-            .map_err(|_| errors::Error::Secp256k1Error)?;
-        let key_pair: KeyPair = KeyPair::from_seckey_str(&sig_obj, privkey)
-            .map_err(|_| errors::Error::InvalidPrivkey)?;
+        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf).unwrap(); // .map_err(|_| errors::Error::Secp256k1Error)?;
+        let key_pair: KeyPair = KeyPair::from_seckey_str(&sig_obj, privkey).unwrap(); //.map_err(|_| errors::Error::InvalidPrivkey)?;
         let pubkey = key_pair.x_only_public_key().0;
         let pubkey = &pubkey.serialize();
-        let mut msg = [0_u8; 32];
-        base16ct::lower::encode(pubkey, &mut msg).map_err(|_| errors::Error::EncodeError)?;
-        self.ref_pks
-            .push(msg)
-            .map_err(|_| errors::Error::QueryBuilderOverflow)?;
+        let mut msg = [0_u8; 64];
+        base16ct::lower::encode(pubkey, &mut msg).unwrap(); //.map_err(|_| errors::Error::EncodeError)?;
+        let mut out = [0_u8; 32];
+        out.copy_from_slice(&msg[0..32]);
+        self.ref_pks.push(out).unwrap(); //.map_err(|_| errors::Error::QueryBuilderOverflow)?;
         Ok(())
     }
 
-    fn to_json(self) -> Result<[u8; 1000], errors::Error> {
+    fn to_json(self) -> Result<Vec<u8, 1000>, errors::Error> {
+        let json = Vec::new();
         // todo
-        Ok([0; 1000])
+        Ok(json)
     }
 
     /// Serializes the note for sending to relay
