@@ -1,4 +1,32 @@
-/// Parse relay responses
+//! Handle messages from relays
+//!
+//! # Example
+//! ```
+//! use nostr_nostd::{Note, String, ClientMsgKinds,relay_responses};
+//! use nostr_nostd::relay_responses::{AuthMessage, ResponseTypes};
+//! let privkey = "a5084b35a58e3e1a26f5efb46cb9dbada73191526aa6d11bccb590cbeb2d8fa3";
+//! let auth_msg_from_relay: &str = r#"["AUTH","encrypt this"]"#;
+//! let msg_type = ResponseTypes::try_from(auth_msg_from_relay).unwrap();
+//! let msg: AuthMessage = match msg_type {
+//!     ResponseTypes::Auth => AuthMessage::try_from(auth_msg_from_relay).unwrap(),
+//!     ResponseTypes::Count => panic!("handle other messages here"),
+//!     ResponseTypes::Eose => panic!("handle other messages here"),
+//!     ResponseTypes::Event => panic!("handle other messages here"),
+//!     ResponseTypes::Notice => panic!("handle other messages here"),
+//!     ResponseTypes::Ok => panic!("handle other messages here"),
+//! };
+//! // aux_rand should be generated from a random number generator
+//! // required to keep PRIVKEY secure with Schnorr signatures
+//! let aux_rand = [0; 32];
+//! let note = Note::new_builder(privkey)
+//!     .unwrap()
+//!     .create_auth(&msg, "wss://relay.example.com")
+//!     .unwrap()
+//!     .build(1686880020, aux_rand)
+//!     .unwrap();
+//! let msg = note.serialize_to_relay(ClientMsgKinds::Auth);
+//! ```
+//!
 use heapless::String;
 
 use crate::{errors::Error, Note};
@@ -25,30 +53,30 @@ pub struct AuthMessage {
 }
 
 #[derive(Debug, PartialEq)]
-struct CountMessage {
-    subscription_id: String<64>,
-    count: u16,
+pub struct CountMessage {
+    pub subscription_id: String<64>,
+    pub count: u16,
 }
 
 #[derive(Debug, PartialEq)]
-struct EoseMessage {
-    subscription_id: String<64>,
+pub struct EoseMessage {
+    pub subscription_id: String<64>,
 }
 
 #[derive(Debug, PartialEq)]
-struct EventMessage {
-    note: Note,
+pub struct EventMessage {
+    pub note: Note,
 }
 
 #[derive(Debug, PartialEq)]
-struct NoticeMessage {
-    message: String<180>,
+pub struct NoticeMessage {
+    pub message: String<180>,
 }
 #[derive(Debug, PartialEq)]
-struct OkMessage {
-    event_id: String<64>,
-    accepted: bool,
-    info: String<180>,
+pub struct OkMessage {
+    pub event_id: String<64>,
+    pub accepted: bool,
+    pub info: String<180>,
 }
 
 impl TryFrom<&str> for ResponseTypes {

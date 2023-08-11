@@ -1,3 +1,5 @@
+//! Possible errors thrown by this crate
+
 #[derive(PartialEq, Debug)]
 pub enum Error {
     InvalidPubkey,
