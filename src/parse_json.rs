@@ -202,7 +202,7 @@ impl TryFrom<&str> for Note {
             id,
             pubkey,
             created_at,
-            kind: kind.try_into()?,
+            kind: kind.into(),
             tags,
             content,
             sig,

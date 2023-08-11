@@ -39,11 +39,36 @@ const MAX_DM_SIZE: usize = 400;
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum NoteKinds {
     /// For most short text based notes
-    ShortNote = 1,
+    ShortNote,
     /// DM
-    DM = 4,
+    DM,
     /// Ephemeral event for authentication to relay
-    Auth = 22242,
+    Auth,
+    /// Regular Events (must be between 1000 and <=9999)
+    Regular(u16),
+    /// Replacabe event (must be between 10000 and <20000)
+    Replaceable(u16),
+    /// Ephemeral event (must be between 20000 and <30000)
+    Ephemeral(u16),
+    /// Parameterized Replacabe event (must be between 30000 and <40000)
+    ParameterizedReplaceable(u16),
+    /// Custom
+    Custom(u16),
+}
+
+impl From<u16> for NoteKinds {
+    fn from(value: u16) -> Self {
+        match value {
+            1 => NoteKinds::ShortNote,
+            4 => NoteKinds::DM,
+            22242 => NoteKinds::Auth,
+            x if (1_000..10_000).contains(&x) => NoteKinds::Regular(x as u16),
+            x if (10_000..20_000).contains(&x) => NoteKinds::Replaceable(x as u16),
+            x if (20_000..30_000).contains(&x) => NoteKinds::Ephemeral(x as u16),
+            x if (30_000..40_000).contains(&x) => NoteKinds::ParameterizedReplaceable(x as u16),
+            x => NoteKinds::Custom(x),
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -54,24 +79,21 @@ pub enum ClientMsgKinds {
     Close,
 }
 
-impl TryFrom<u16> for NoteKinds {
-    type Error = errors::Error;
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        match value {
-            1 => Ok(NoteKinds::ShortNote),
-            4 => Ok(NoteKinds::DM),
-            22242 => Ok(NoteKinds::Auth),
-            _ => Err(errors::Error::UnknownKind),
-        }
-    }
-}
-
 impl NoteKinds {
     pub fn serialize(&self) -> [u8; 10] {
         // will ignore large bytes when serializing
         let mut buffer = [255_u8; 10];
         let mut idx = buffer.len();
-        let mut n = *self as u32;
+        let mut n: u16 = match self {
+            NoteKinds::ShortNote => 1,
+            NoteKinds::DM => 4,
+            NoteKinds::Auth => 22242,
+            NoteKinds::Regular(val) => *val,
+            NoteKinds::Replaceable(val) => *val,
+            NoteKinds::Ephemeral(val) => *val,
+            NoteKinds::ParameterizedReplaceable(val) => *val,
+            NoteKinds::Custom(val) => *val,
+        };
 
         while n > 0 && idx > 0 {
             idx -= 1;
