@@ -72,8 +72,57 @@ impl Query {
     }
 
     fn to_json(self) -> Result<Vec<u8, 1000>, errors::Error> {
-        let json = Vec::new();
-        // todo
+        let mut json = Vec::new();
+        b"{".iter().for_each(|b| json.push(*b).expect("impossible"));
+        if self.ids.len() > 0 {
+            br#""id":"#.iter().for_each(|b| {
+                json.push(*b).unwrap();
+            });
+        }
+        self.ids.iter().for_each(|val| {
+            val.iter().for_each(|b| {
+                json.push(*b).unwrap();
+            })
+        });
+        if self.authors.len() > 0 {
+            br#""authors":"#.iter().for_each(|b| {
+                json.push(*b).unwrap();
+            });
+        }
+        self.authors.iter().for_each(|val| {
+            val.iter().for_each(|b| {
+                json.push(*b).unwrap();
+            })
+        });
+        if self.ref_pks.len() > 0 {
+            br##""#p":"##.iter().for_each(|b| {
+                json.push(*b).unwrap();
+            });
+        }
+        self.ref_pks.iter().for_each(|val| {
+            val.iter().for_each(|b| {
+                json.push(*b).unwrap();
+            })
+        });
+        if self.ref_events.len() > 0 {
+            br##""#e":"##.iter().for_each(|b| {
+                json.push(*b).unwrap();
+            });
+        }
+        self.ref_events.iter().for_each(|val| {
+            val.iter().for_each(|b| {
+                json.push(*b).unwrap();
+            })
+        });
+        if self.kinds.len() > 0 {
+            br#""kinds":"#.iter().for_each(|b| {
+                json.push(*b).unwrap();
+            });
+        }
+        self.kinds.iter().for_each(|kind| {
+            // serialize kind?
+        });
+
         Ok(json)
     }
 
