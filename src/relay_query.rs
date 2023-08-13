@@ -19,7 +19,7 @@
 use heapless::Vec;
 use secp256k1::{ffi::types::AlignedType, KeyPair};
 
-use crate::{errors, NoteKinds};
+use crate::{errors, utils::to_decimal_str, NoteKinds};
 
 const QUERY_VEC_LEN: usize = 5;
 pub struct Query {
@@ -200,16 +200,46 @@ impl Query {
 
         //todo: add since, until params
         if let Some(since) = self.since {
+            if add_obj_comma {
+                json.push(44).unwrap();
+            }
             // add since
+            br#""since":"#.iter().for_each(|b| {
+                json.push(*b).unwrap();
+            });
+            add_obj_comma = true;
+            to_decimal_str(since).chars().for_each(|val| {
+                json.push(val as u8).unwrap();
+            });
         }
         //todo: add since, until params
         if let Some(until) = self.until {
             // add until
+            if add_obj_comma {
+                json.push(44).unwrap();
+            }
+            br#""until":"#.iter().for_each(|b| {
+                json.push(*b).unwrap();
+            });
+            add_obj_comma = true;
+            to_decimal_str(until).chars().for_each(|val| {
+                json.push(val as u8).unwrap();
+            });
         }
 
         //todo: add since, until params
         if let Some(limit) = self.limit {
             // add limit
+            if add_obj_comma {
+                json.push(44).unwrap();
+            }
+            br#""limit":"#.iter().for_each(|b| {
+                json.push(*b).unwrap();
+            });
+            add_obj_comma = true;
+            to_decimal_str(limit).chars().for_each(|val| {
+                json.push(val as u8).unwrap();
+            });
         }
 
         json.push(125).expect("impossible"); // } char
@@ -263,9 +293,9 @@ mod tests {
             kinds: Vec::new(),
             ref_events: Vec::new(),
             ref_pks: Vec::new(),
-            since: None,
-            until: None,
-            limit: None,
+            since: Some(10_000),
+            until: Some(10_001),
+            limit: Some(10),
         };
         query.ref_pks.push([97; 64]).unwrap();
         query.ref_pks.push([98; 64]).unwrap();
@@ -273,7 +303,7 @@ mod tests {
         query.kinds.push(NoteKinds::Regular(1005)).unwrap();
 
         let query = query.serialize_to_relay().unwrap();
-        let expected = br##"["REQ",{"#p":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],"kinds":[5732,1005]}]"##;
+        let expected = br##"["REQ",{"#p":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],"kinds":[5732,1005],"since":10000,"until":10001,"limit":10}]"##;
         assert_eq!(query, expected);
     }
 }
