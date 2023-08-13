@@ -183,11 +183,9 @@ impl Query {
             add_obj_comma = true;
         }
         self.kinds.iter().try_for_each(|kind| {
-            kind.serialize().iter().try_for_each(|b| {
-                if *b != 255 {
-                    json.push(*b)
-                        .map_err(|_| errors::Error::QueryBuilderOverflow)?
-                };
+            kind.serialize().chars().try_for_each(|b| {
+                json.push(b as u8)
+                    .map_err(|_| errors::Error::QueryBuilderOverflow)?;
                 Ok(())
             })?;
             remove_inner_list_comma = true;

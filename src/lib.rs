@@ -25,12 +25,14 @@ pub use heapless::{String, Vec};
 use relay_responses::AuthMessage;
 use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message, XOnlyPublicKey};
 use sha2::{Digest, Sha256};
+use utils::to_decimal_str;
 
 pub mod errors;
 mod nip04;
 mod parse_json;
 pub mod relay_query;
 pub mod relay_responses;
+mod utils;
 
 const TAG_SIZE: usize = 150;
 const NOTE_SIZE: usize = 400;
@@ -60,11 +62,9 @@ pub enum NoteKinds {
 }
 
 impl NoteKinds {
-    pub fn serialize(&self) -> [u8; 10] {
+    pub fn serialize(&self) -> String<6> {
         // will ignore large bytes when serializing
-        let mut buffer = [255_u8; 10];
-        let mut idx = buffer.len();
-        let mut n: u16 = match self {
+        let n: u16 = match self {
             NoteKinds::ShortNote => 1,
             NoteKinds::DM => 4,
             NoteKinds::IOT => 5732,
@@ -76,13 +76,7 @@ impl NoteKinds {
             NoteKinds::Custom(val) => *val,
         };
 
-        while n > 0 && idx > 0 {
-            idx -= 1;
-            buffer[idx] = b'0' + (n % 10) as u8;
-            n /= 10;
-        }
-
-        buffer
+        to_decimal_str(n)
     }
 }
 
@@ -365,11 +359,9 @@ impl Note {
         });
         hash_str[count] = 44; // 44 = ,
         count += 1;
-        self.kind.serialize().iter().for_each(|bs| {
-            if *bs != 255 {
-                hash_str[count] = *bs;
-                count += 1;
-            }
+        self.kind.serialize().chars().for_each(|bs| {
+            hash_str[count] = bs as u8;
+            count += 1;
         });
         hash_str[count] = 44; // 44 = ,
         count += 1;
@@ -506,12 +498,10 @@ impl Note {
                 .push(*bs)
                 .expect("Impossible due to size constraints of content, tags");
         });
-        self.kind.serialize().iter().for_each(|bs| {
-            if *bs != 255 {
-                output
-                    .push(*bs)
-                    .expect("Impossible due to size constraints of content, tags");
-            }
+        self.kind.serialize().chars().for_each(|bs| {
+            output
+                .push(bs as u8)
+                .expect("Impossible due to size constraints of content, tags");
         });
         br#","pubkey":""#.iter().for_each(|bs| {
             output
