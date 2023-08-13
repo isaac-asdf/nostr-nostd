@@ -62,7 +62,7 @@ pub enum NoteKinds {
 }
 
 impl NoteKinds {
-    pub fn serialize(&self) -> String<6> {
+    pub fn serialize(&self) -> String<7> {
         // will ignore large bytes when serializing
         let n: u16 = match self {
             NoteKinds::ShortNote => 1,
@@ -76,7 +76,7 @@ impl NoteKinds {
             NoteKinds::Custom(val) => *val,
         };
 
-        to_decimal_str(n)
+        to_decimal_str(n as u32)
     }
 }
 

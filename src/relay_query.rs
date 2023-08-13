@@ -198,6 +198,20 @@ impl Query {
             remove_inner_list_comma = false;
         }
 
+        //todo: add since, until params
+        if let Some(since) = self.since {
+            // add since
+        }
+        //todo: add since, until params
+        if let Some(until) = self.until {
+            // add until
+        }
+
+        //todo: add since, until params
+        if let Some(limit) = self.limit {
+            // add limit
+        }
+
         json.push(125).expect("impossible"); // } char
         Ok(json)
     }

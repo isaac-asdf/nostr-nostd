@@ -1,10 +1,11 @@
 use heapless::String;
 
-pub fn to_decimal_str(num: u16) -> String<6> {
+/// Panics if number is larger than 7 digits, ie > 9,999,999
+pub fn to_decimal_str(num: u32) -> String<7> {
     if num == 0 {
         return String::from("0");
     }
-    let mut serialized: String<6> = String::new();
+    let mut serialized: String<7> = String::new();
     let mut n = num;
     while n > 0 {
         let last_dec = n % 10;
@@ -14,7 +15,7 @@ pub fn to_decimal_str(num: u16) -> String<6> {
         n /= 10;
     }
 
-    let mut output_str: String<6> = String::new();
+    let mut output_str: String<7> = String::new();
     // there's probably a better way to do this...
     while let Some(digit) = serialized.pop() {
         output_str.push(digit).unwrap();
