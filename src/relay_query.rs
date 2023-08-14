@@ -42,6 +42,7 @@ pub struct Query {
 }
 
 impl Query {
+    /// Creates a new query with all fields initialized empty
     #[inline]
     pub fn new() -> Self {
         Query {
@@ -56,6 +57,7 @@ impl Query {
         }
     }
 
+    /// Sets #p tag and kind tag to search for NIP04 messages
     #[inline]
     pub fn get_my_dms(&mut self, privkey: &str) -> Result<(), errors::Error> {
         let mut buf = [AlignedType::zeroed(); 64];
@@ -198,7 +200,6 @@ impl Query {
             // remove_inner_list_comma = false;
         }
 
-        //todo: add since, until params
         if let Some(since) = self.since {
             if add_obj_comma {
                 json.push(44).unwrap();
@@ -212,7 +213,6 @@ impl Query {
                 json.push(val as u8).unwrap();
             });
         }
-        //todo: add since, until params
         if let Some(until) = self.until {
             // add until
             if add_obj_comma {
@@ -227,7 +227,6 @@ impl Query {
             });
         }
 
-        //todo: add since, until params
         if let Some(limit) = self.limit {
             // add limit
             if add_obj_comma {

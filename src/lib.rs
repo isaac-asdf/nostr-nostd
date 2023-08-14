@@ -62,7 +62,7 @@ pub enum NoteKinds {
 }
 
 impl NoteKinds {
-    pub fn serialize(&self) -> String<7> {
+    pub fn serialize(&self) -> String<10> {
         // will ignore large bytes when serializing
         let n: u16 = match self {
             NoteKinds::ShortNote => 1,
@@ -321,19 +321,8 @@ impl Note {
         })
     }
 
-    fn timestamp_bytes(&self) -> [u8; 10] {
-        // thanks to ChatGPT for the below code :)
-        let mut buffer = [255_u8; 10];
-        let mut idx = buffer.len();
-        let mut n = self.created_at;
-
-        while n > 0 && idx > 0 {
-            idx -= 1;
-            buffer[idx] = b'0' + (n % 10) as u8;
-            n /= 10;
-        }
-
-        buffer
+    fn timestamp_bytes(&self) -> String<10> {
+        to_decimal_str(self.created_at)
     }
 
     fn to_hash_str(&self) -> ([u8; 1536], usize) {
@@ -351,11 +340,9 @@ impl Note {
             hash_str[count] = *bs;
             count += 1;
         });
-        self.timestamp_bytes().iter().for_each(|bs| {
-            if *bs != 255 {
-                hash_str[count] = *bs;
-                count += 1;
-            }
+        self.timestamp_bytes().chars().for_each(|bs| {
+            hash_str[count] = bs as u8;
+            count += 1;
         });
         hash_str[count] = 44; // 44 = ,
         count += 1;
@@ -476,12 +463,10 @@ impl Note {
                 .push(*bs)
                 .expect("Impossible due to size constraints of content, tags");
         });
-        self.timestamp_bytes().iter().for_each(|bs| {
-            if *bs != 255 {
-                output
-                    .push(*bs)
-                    .expect("Impossible due to size constraints of content, tags");
-            }
+        self.timestamp_bytes().chars().for_each(|bs| {
+            output
+                .push(bs as u8)
+                .expect("Impossible due to size constraints of content, tags");
         });
         br#","id":""#.iter().for_each(|bs| {
             output
@@ -692,9 +677,8 @@ mod tests {
     #[test]
     fn timestamp_test() {
         let note = get_note();
-        let hash_correct = *b"1686880020";
         let ts = note.timestamp_bytes();
-        assert_eq!(ts, hash_correct);
+        assert_eq!(ts, String::<10>::from("1686880020"));
     }
 
     #[test]
