@@ -195,7 +195,7 @@ impl Query {
         if remove_inner_list_comma {
             json.pop();
             json.push(93).unwrap();
-            remove_inner_list_comma = false;
+            // remove_inner_list_comma = false;
         }
 
         //todo: add since, until params
@@ -236,7 +236,7 @@ impl Query {
             br#""limit":"#.iter().for_each(|b| {
                 json.push(*b).unwrap();
             });
-            add_obj_comma = true;
+            // add_obj_comma = true;
             to_decimal_str(limit).chars().for_each(|val| {
                 json.push(val as u8).unwrap();
             });
