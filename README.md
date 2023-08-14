@@ -13,6 +13,7 @@ A demo project can be seen [here](https://github.com/isaac-asdf/esp32-nostr-clie
   - ShortNote, 1
   - DMs, 4
   - Auth, 22242
+  - IOT, 5732
 - Tags on notes, limit of 5
 
 # Future improvements
