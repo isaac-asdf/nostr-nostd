@@ -12,15 +12,15 @@ pub fn to_decimal_str(num: u32) -> String<DEC_STRING_SIZE> {
     while n > 0 {
         let last_dec = n % 10;
         serialized
-            .push(char::from_digit(last_dec.into(), 10).unwrap())
-            .unwrap();
+            .push(char::from_digit(last_dec.into(), 10).expect("impossible to fail here"))
+            .expect("impossible to fail here");
         n /= 10;
     }
 
     let mut output_str: String<DEC_STRING_SIZE> = String::new();
     // there's probably a better way to do this...
     while let Some(digit) = serialized.pop() {
-        output_str.push(digit).unwrap();
+        output_str.push(digit).expect("impossible to fail here");
     }
 
     output_str
