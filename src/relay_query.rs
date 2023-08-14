@@ -84,104 +84,117 @@ impl Query {
         let mut add_obj_comma = false;
         json.push(123).expect("impossible"); // { char
         if self.ids.len() > 0 {
-            br#""id":["#.iter().for_each(|b| {
-                json.push(*b).unwrap();
-            });
+            br#""id":["#.iter().try_for_each(|b| {
+                json.push(*b).map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
             add_obj_comma = true;
         }
-        self.ids.iter().for_each(|val| {
+        self.ids.iter().try_for_each(|val| {
             // 34 = " char
-            json.push(34).unwrap();
-            val.iter().for_each(|b| {
-                json.push(*b).unwrap();
-            });
-            json.push(34).unwrap();
+            json.push(34).map_err(|_| errors::Error::ContentOverflow)?;
+            val.iter().try_for_each(|b| {
+                json.push(*b).map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
+            json.push(34).map_err(|_| errors::Error::ContentOverflow)?;
             remove_inner_list_comma = true;
-            json.push(44).unwrap();
-        });
+            json.push(44).map_err(|_| errors::Error::ContentOverflow)?;
+            Ok(())
+        })?;
         if remove_inner_list_comma {
             json.pop();
-            json.push(93).unwrap();
+            json.push(93).map_err(|_| errors::Error::ContentOverflow)?;
             remove_inner_list_comma = false;
         }
         if self.authors.len() > 0 {
             if add_obj_comma {
-                json.push(44).unwrap();
+                json.push(44).map_err(|_| errors::Error::ContentOverflow)?;
             }
-            br#""authors":["#.iter().for_each(|b| {
-                json.push(*b).unwrap();
-            });
+            br#""authors":["#.iter().try_for_each(|b| {
+                json.push(*b).map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
             add_obj_comma = true;
         }
-        self.authors.iter().for_each(|val| {
+        self.authors.iter().try_for_each(|val| {
             // 34 = " char
-            json.push(34).unwrap();
-            val.iter().for_each(|b| {
-                json.push(*b).unwrap();
-            });
-            json.push(34).unwrap();
+            json.push(34).map_err(|_| errors::Error::ContentOverflow)?;
+            val.iter().try_for_each(|b| {
+                json.push(*b).map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
+            json.push(34).map_err(|_| errors::Error::ContentOverflow)?;
             remove_inner_list_comma = true;
-            json.push(44).unwrap();
-        });
+            json.push(44).map_err(|_| errors::Error::ContentOverflow)?;
+            Ok(())
+        })?;
         if remove_inner_list_comma {
             json.pop();
-            json.push(93).unwrap();
+            json.push(93).map_err(|_| errors::Error::ContentOverflow)?;
             remove_inner_list_comma = false;
         }
         if self.ref_pks.len() > 0 {
             if add_obj_comma {
-                json.push(44).unwrap();
+                json.push(44).map_err(|_| errors::Error::ContentOverflow)?;
             }
-            br##""#p":["##.iter().for_each(|b| {
-                json.push(*b).unwrap();
-            });
+            br##""#p":["##.iter().try_for_each(|b| {
+                json.push(*b).map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
             add_obj_comma = true;
         }
-        self.ref_pks.iter().for_each(|val| {
+        self.ref_pks.iter().try_for_each(|val| {
             // 34 = " char
-            json.push(34).unwrap();
-            val.iter().for_each(|b| {
-                json.push(*b).unwrap();
-            });
-            json.push(34).unwrap();
+            json.push(34).map_err(|_| errors::Error::ContentOverflow)?;
+            val.iter().try_for_each(|b| {
+                json.push(*b).map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
+            json.push(34).map_err(|_| errors::Error::ContentOverflow)?;
             remove_inner_list_comma = true;
-            json.push(44).unwrap();
-        });
+            json.push(44).map_err(|_| errors::Error::ContentOverflow)?;
+            Ok(())
+        })?;
         if remove_inner_list_comma {
             json.pop();
-            json.push(93).unwrap();
+            json.push(93).map_err(|_| errors::Error::ContentOverflow)?;
             remove_inner_list_comma = false;
         }
         if self.ref_events.len() > 0 {
             if add_obj_comma {
-                json.push(44).unwrap();
+                json.push(44).map_err(|_| errors::Error::ContentOverflow)?;
             }
-            br##""#e":["##.iter().for_each(|b| {
-                json.push(*b).unwrap();
-            });
+            br##""#e":["##.iter().try_for_each(|b| {
+                json.push(*b).map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
             add_obj_comma = true;
         }
-        self.ref_events.iter().for_each(|val| {
+        self.ref_events.iter().try_for_each(|val| {
             // 34 = " char
-            json.push(34).unwrap();
-            val.iter().for_each(|b| {
-                json.push(*b).unwrap();
-            });
+            json.push(34).map_err(|_| errors::Error::ContentOverflow)?;
+            val.iter().try_for_each(|b| {
+                json.push(*b).map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
             remove_inner_list_comma = true;
-            json.push(44).unwrap();
-        });
+            json.push(44).map_err(|_| errors::Error::ContentOverflow)?;
+            Ok(())
+        })?;
         if remove_inner_list_comma {
             json.pop();
-            json.push(93).unwrap();
+            json.push(93).map_err(|_| errors::Error::ContentOverflow)?;
             remove_inner_list_comma = false;
         }
         if self.kinds.len() > 0 {
             if add_obj_comma {
-                json.push(44).unwrap();
+                json.push(44).map_err(|_| errors::Error::ContentOverflow)?;
             }
-            br#""kinds":["#.iter().for_each(|b| {
-                json.push(*b).unwrap();
-            });
+            br#""kinds":["#.iter().try_for_each(|b| {
+                json.push(*b).map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
             add_obj_comma = true;
         }
         self.kinds.iter().try_for_each(|kind| {
@@ -191,61 +204,71 @@ impl Query {
                 Ok(())
             })?;
             remove_inner_list_comma = true;
-            json.push(44).unwrap();
+            json.push(44).map_err(|_| errors::Error::ContentOverflow)?;
             Ok(())
         })?;
         if remove_inner_list_comma {
             json.pop();
-            json.push(93).unwrap();
+            json.push(93).map_err(|_| errors::Error::ContentOverflow)?;
             // remove_inner_list_comma = false;
         }
 
         if let Some(since) = self.since {
             if add_obj_comma {
-                json.push(44).unwrap();
+                json.push(44).map_err(|_| errors::Error::ContentOverflow)?;
             }
             // add since
-            br#""since":"#.iter().for_each(|b| {
-                json.push(*b).unwrap();
-            });
+            br#""since":"#.iter().try_for_each(|b| {
+                json.push(*b).map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
             add_obj_comma = true;
-            to_decimal_str(since).chars().for_each(|val| {
-                json.push(val as u8).unwrap();
-            });
+            to_decimal_str(since).chars().try_for_each(|val| {
+                json.push(val as u8)
+                    .map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
         }
         if let Some(until) = self.until {
             // add until
             if add_obj_comma {
-                json.push(44).unwrap();
+                json.push(44).map_err(|_| errors::Error::ContentOverflow)?;
             }
-            br#""until":"#.iter().for_each(|b| {
-                json.push(*b).unwrap();
-            });
+            br#""until":"#.iter().try_for_each(|b| {
+                json.push(*b).map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
             add_obj_comma = true;
-            to_decimal_str(until).chars().for_each(|val| {
-                json.push(val as u8).unwrap();
-            });
+            to_decimal_str(until).chars().try_for_each(|val| {
+                json.push(val as u8)
+                    .map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
         }
 
         if let Some(limit) = self.limit {
             // add limit
             if add_obj_comma {
-                json.push(44).unwrap();
+                json.push(44).map_err(|_| errors::Error::ContentOverflow)?;
             }
-            br#""limit":"#.iter().for_each(|b| {
-                json.push(*b).unwrap();
-            });
+            br#""limit":"#.iter().try_for_each(|b| {
+                json.push(*b).map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
             // add_obj_comma = true;
-            to_decimal_str(limit).chars().for_each(|val| {
-                json.push(val as u8).unwrap();
-            });
+            to_decimal_str(limit).chars().try_for_each(|val| {
+                json.push(val as u8)
+                    .map_err(|_| errors::Error::ContentOverflow)?;
+                Ok(())
+            })?;
         }
 
         json.push(125).expect("impossible"); // } char
         Ok(json)
     }
 
-    /// Serializes the note for sending to relay
+    /// Serializes the note for sending to relay.
+    /// Can error if too many tags/ids/events/etc have been supplied
     #[inline]
     pub fn serialize_to_relay(self) -> Result<Vec<u8, 1000>, errors::Error> {
         let mut output: Vec<u8, 1000> = Vec::new();
@@ -278,8 +301,14 @@ mod tests {
     #[test]
     fn test_dms() {
         let mut query = Query::new();
-        query.get_my_dms(PRIVKEY).unwrap();
-        let query = query.serialize_to_relay().unwrap();
+        query
+            .get_my_dms(PRIVKEY)
+            .map_err(|_| errors::Error::ContentOverflow)
+            .expect("test");
+        let query = query
+            .serialize_to_relay()
+            .map_err(|_| errors::Error::ContentOverflow)
+            .expect("test");
         let expected = br##"["REQ",{"#p":["098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"],"kinds":[4]}]"##;
         assert_eq!(query, expected);
     }
@@ -296,12 +325,31 @@ mod tests {
             until: Some(10_001),
             limit: Some(10),
         };
-        query.ref_pks.push([97; 64]).unwrap();
-        query.ref_pks.push([98; 64]).unwrap();
-        query.kinds.push(NoteKinds::IOT).unwrap();
-        query.kinds.push(NoteKinds::Regular(1005)).unwrap();
+        query
+            .ref_pks
+            .push([97; 64])
+            .map_err(|_| errors::Error::ContentOverflow)
+            .expect("test");
+        query
+            .ref_pks
+            .push([98; 64])
+            .map_err(|_| errors::Error::ContentOverflow)
+            .expect("test");
+        query
+            .kinds
+            .push(NoteKinds::IOT)
+            .map_err(|_| errors::Error::ContentOverflow)
+            .expect("test");
+        query
+            .kinds
+            .push(NoteKinds::Regular(1005))
+            .map_err(|_| errors::Error::ContentOverflow)
+            .expect("test");
 
-        let query = query.serialize_to_relay().unwrap();
+        let query = query
+            .serialize_to_relay()
+            .map_err(|_| errors::Error::ContentOverflow)
+            .expect("test");
         let expected = br##"["REQ",{"#p":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],"kinds":[5732,1005],"since":10000,"until":10001,"limit":10}]"##;
         assert_eq!(query, expected);
     }
