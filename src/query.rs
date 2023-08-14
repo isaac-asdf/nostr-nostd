@@ -1,22 +1,20 @@
 //! Build queries to get events from relays
 //!
-//! ["REQ", <subscription_id>, <filters JSON>...]
-//! where <subscription_id> is an arbitrary, non-empty string of max length 64 chars
+//! - where `subscription_id` is an arbitrary, non-empty string of max length 64 chars
 //!
-//! generic query looks like:
-//! {
-//!  "ids":
-//!  "authors":
-//!  "kinds":
-//!  "#e":
-//!  "#p":
-//!  "since":
-//!  "until":
-//!  "limit":
-//!}
-//!
+//! # Example
+//! ```
+//! use nostr_nostd::query;
+//!     let mut query = nostr::query::Query::new();
+//! query
+//!     .authors
+//!     .push(*b"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf")
+//!     .unwrap();
+//! let msg = query.serialize_to_relay("test_subscription_1".into()).unwrap();
+//! // can send msg to relay, and event will be returned as a list of: ["EVENT","test_subscription_1",{event_1_json}],etc...
+//! ```
 
-use heapless::Vec;
+use heapless::{String, Vec};
 use secp256k1::{ffi::types::AlignedType, KeyPair};
 
 use crate::{errors, utils::to_decimal_str, NoteKinds};
@@ -268,17 +266,27 @@ impl Query {
     }
 
     /// Serializes the note for sending to relay.
-    /// Can error if too many tags/ids/events/etc have been supplied
+    /// Can error if too many tags/ids/events/etc have been supplied.
+    /// `subscription_id` will be included with returned events from relay
     #[inline]
-    pub fn serialize_to_relay(self) -> Result<Vec<u8, 1000>, errors::Error> {
+    pub fn serialize_to_relay(
+        self,
+        subscription_id: String<64>,
+    ) -> Result<Vec<u8, 1000>, errors::Error> {
         let mut output: Vec<u8, 1000> = Vec::new();
         // fill in output
-        r#"["REQ","#.as_bytes().iter().try_for_each(|bs| {
+        r#"["REQ",""#.as_bytes().iter().try_for_each(|bs| {
             output
                 .push(*bs)
                 .map_err(|_| errors::Error::QueryBuilderOverflow)?;
             Ok(())
         })?;
+        subscription_id
+            .chars()
+            .for_each(|c| output.push(c as u8).expect("impossible"));
+        // append ", to subscription id
+        output.push(34).expect("impossible");
+        output.push(44).expect("impossible");
         let json = self.to_json()?;
         json.iter().try_for_each(|bs| {
             output
@@ -306,10 +314,10 @@ mod tests {
             .map_err(|_| errors::Error::ContentOverflow)
             .expect("test");
         let query = query
-            .serialize_to_relay()
+            .serialize_to_relay("my_dms".into())
             .map_err(|_| errors::Error::ContentOverflow)
             .expect("test");
-        let expected = br##"["REQ",{"#p":["098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"],"kinds":[4]}]"##;
+        let expected = br##"["REQ","my_dms",{"#p":["098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"],"kinds":[4]}]"##;
         assert_eq!(query, expected);
     }
 
@@ -347,10 +355,10 @@ mod tests {
             .expect("test");
 
         let query = query
-            .serialize_to_relay()
+            .serialize_to_relay("subscription_1".into())
             .map_err(|_| errors::Error::ContentOverflow)
             .expect("test");
-        let expected = br##"["REQ",{"#p":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],"kinds":[5732,1005],"since":10000,"until":10001,"limit":10}]"##;
+        let expected = br##"["REQ","subscription_1",{"#p":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],"kinds":[5732,1005],"since":10000,"until":10001,"limit":10}]"##;
         assert_eq!(query, expected);
     }
 }
