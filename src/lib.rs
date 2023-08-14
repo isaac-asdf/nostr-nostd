@@ -30,7 +30,7 @@ use utils::to_decimal_str;
 pub mod errors;
 mod nip04;
 mod parse_json;
-pub mod relay_query;
+pub mod query;
 pub mod relay_responses;
 mod utils;
 
