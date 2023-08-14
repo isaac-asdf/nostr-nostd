@@ -4,8 +4,8 @@
 //!
 //! # Example
 //! ```
-//! use nostr_nostd::query;
-//!     let mut query = nostr::query::Query::new();
+//! use nostr_nostd::query::Query;
+//!     let mut query = Query::new();
 //! query
 //!     .authors
 //!     .push(*b"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf")
