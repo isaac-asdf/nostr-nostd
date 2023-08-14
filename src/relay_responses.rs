@@ -65,6 +65,7 @@ pub struct EoseMessage {
 
 #[derive(Debug, PartialEq)]
 pub struct EventMessage {
+    pub subscription_id: String<64>,
     pub note: Note,
 }
 
@@ -182,13 +183,17 @@ impl TryFrom<&str> for EventMessage {
             Err(Error::TypeNotAccepted)
         } else {
             let start_index = EVENT_STR.len();
-            let end_index = value.len() - 2;
+            let value = &value[start_index..];
+            let subscription = value.split(",").next().ok_or(Error::EventNotValid)?;
+            let subscription_id: String<64> = subscription[1..subscription.len() - 1].into();
 
+            let end_index = value.len() - 2;
             if value.len() < end_index {
                 return Err(Error::ContentOverflow);
             }
-            let event_json = &value[start_index..end_index];
+            let event_json = &value[subscription_id.len()..end_index];
             Ok(EventMessage {
+                subscription_id,
                 note: Note::try_from(event_json)?,
             })
         }
@@ -272,7 +277,7 @@ mod tests {
     const COUNT_MSG: &str = r#"["COUNT", "b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8", {"count": 5}]"#;
     const EOSE_MSG: &str =
         r#"["EOSE", "b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8"]"#;
-    const EVENT_MSG: &str = r#"["EVENT", {"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}]"#;
+    const EVENT_MSG: &str = r#"["EVENT","sub_1", {"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]}]"#;
     const NOTICE_MSG: &str = r#"["NOTICE", "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?"]"#;
     const OK_MSG: &str = r#"["OK", "b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8", false, "duplicate event"]"#;
 
@@ -330,7 +335,11 @@ mod tests {
             tags: Vec::new(),
             sig: *b"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab",
         };
-        assert_eq!(msg.note, expected_event);
+        let event_msg = EventMessage {
+            subscription_id: "sub_1".into(),
+            note: expected_event,
+        };
+        assert_eq!(msg, event_msg);
     }
 
     #[test]
