@@ -1,6 +1,6 @@
 [package]
 name = "nostr-nostd"
-version = "0.1.0"
+version = "0.2.0"
 description = "A crate to assist with implementing a nostr client in a ![no_std] environment"
 documentation = "https://docs.rs/nostr-nostd"
 repository = "https://github.com/isaac-asdf/nostr-nostd"
@@ -16,5 +16,10 @@ edition = "2021"
 [dependencies]
 base16ct = "0.2.0"
 heapless = { version = "0.7.14", default-features = false }
-secp256k1 = {version = "0.27.0", default-features = false, features = ["serde", "rand", "recovery", "lowmemory"] }
+secp256k1 = {version = "0.27.0", default-features = false, features = ["lowmemory"] }
 sha2 = { version = "0.10.7", default-features = false }
+
+# NIP04
+aes = "0.8.3"
+cbc = { version = "0.1.2", default-features = false }
+base64ct = "1.6.0"

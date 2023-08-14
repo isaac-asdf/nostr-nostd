@@ -9,12 +9,16 @@ A demo project can be seen [here](https://github.com/isaac-asdf/esp32-nostr-clie
 
 # Implemented
 
-- Basic Kind 1 note creation
-- Tag addition, up to 5
+- Kinds implemented
+  - ShortNote, 1
+  - DMs, 4
+  - Auth, 22242
+- Tags on notes, limit of 5
 
 # Future improvements
 
-- Support more note kinds, investigate Kind 4 for private sending in an IOT context
+- Support more note kinds
+- Investigate GenericArray to make length of content able to be larger without always filling memory
 
 [//]: # "badges"
 [crate-image]: https://buildstats.info/crate/nostr-nostd
