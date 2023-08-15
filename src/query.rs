@@ -10,7 +10,7 @@
 //!     .authors
 //!     .push(*b"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf")
 //!     .unwrap();
-//! let msg = query.serialize_to_relay("test_subscription_1".into()).unwrap();
+//! let msg = query.serialize_to_relay("test_subscription_1").unwrap();
 //! // can send msg to relay, and event will be returned as a list of: ["EVENT","test_subscription_1",{event_1_json}],etc...
 //! ```
 
