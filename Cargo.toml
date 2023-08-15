@@ -1,7 +1,7 @@
 [package]
 name = "nostr-nostd"
-version = "0.2.0"
-description = "A crate to assist with implementing a nostr client in a ![no_std] environment"
+version = "0.2.1"
+description = "Implementation of a nostr client in a ![no_std] environment"
 documentation = "https://docs.rs/nostr-nostd"
 repository = "https://github.com/isaac-asdf/nostr-nostd"
 authors = ["Isaac Eiter"]
