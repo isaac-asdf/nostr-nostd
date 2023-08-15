@@ -10,16 +10,25 @@
 //!     .authors
 //!     .push(*b"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf")
 //!     .unwrap();
-//! let msg = query.serialize_to_relay("test_subscription_1".into()).unwrap();
+//! let msg = query.serialize_to_relay("test_subscription_1").unwrap();
 //! // can send msg to relay, and event will be returned as a list of: ["EVENT","test_subscription_1",{event_1_json}],etc...
 //! ```
 
-use heapless::{String, Vec};
+use heapless::Vec;
 use secp256k1::{ffi::types::AlignedType, KeyPair};
 
 use crate::{errors, utils::to_decimal_str, NoteKinds};
 
 const QUERY_VEC_LEN: usize = 5;
+
+/// Get a `CLOSE` message to send to the relay to end a previously started subscription
+pub fn close_subscription(id: &str) -> Vec<u8, 100> {
+    let mut output: Vec<u8, 100> = Vec::new();
+    br#"["CLOSE",""#.iter().for_each(|b| output.push(*b).unwrap());
+    id.chars().for_each(|b| output.push(b as u8).unwrap());
+    br#""]"#.iter().for_each(|b| output.push(*b).unwrap());
+    output
+}
 pub struct Query {
     /// a list of event ids or prefixes
     pub ids: Vec<[u8; 64], QUERY_VEC_LEN>,
@@ -267,12 +276,10 @@ impl Query {
 
     /// Serializes the note for sending to relay.
     /// Can error if too many tags/ids/events/etc have been supplied.
-    /// `subscription_id` will be included with returned events from relay
+    /// - `subscription_id` will be included with returned events from relay
+    /// - `subscription_id` length must be <= 64 characters
     #[inline]
-    pub fn serialize_to_relay(
-        self,
-        subscription_id: String<64>,
-    ) -> Result<Vec<u8, 1000>, errors::Error> {
+    pub fn serialize_to_relay(self, subscription_id: &str) -> Result<Vec<u8, 1000>, errors::Error> {
         let mut output: Vec<u8, 1000> = Vec::new();
         // fill in output
         r#"["REQ",""#.as_bytes().iter().try_for_each(|bs| {
@@ -314,11 +321,19 @@ mod tests {
             .map_err(|_| errors::Error::ContentOverflow)
             .expect("test");
         let query = query
-            .serialize_to_relay("my_dms".into())
+            .serialize_to_relay("my_dms")
             .map_err(|_| errors::Error::ContentOverflow)
             .expect("test");
         let expected = br##"["REQ","my_dms",{"#p":["098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf"],"kinds":[4]}]"##;
         assert_eq!(query, expected);
+    }
+
+    #[test]
+    fn test_close() {
+        let sub_id = "sub_1";
+        let closed = close_subscription(sub_id);
+        let expected = br#"["CLOSE","sub_1"]"#;
+        assert_eq!(closed, expected);
     }
 
     #[test]
@@ -355,7 +370,7 @@ mod tests {
             .expect("test");
 
         let query = query
-            .serialize_to_relay("subscription_1".into())
+            .serialize_to_relay("subscription_1")
             .map_err(|_| errors::Error::ContentOverflow)
             .expect("test");
         let expected = br##"["REQ","subscription_1",{"#p":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],"kinds":[5732,1005],"since":10000,"until":10001,"limit":10}]"##;
