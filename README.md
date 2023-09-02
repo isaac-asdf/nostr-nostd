@@ -18,6 +18,7 @@ A demo project can be seen [here](https://github.com/isaac-asdf/esp32-nostr-clie
 
 # Future improvements
 
+- Add validation of received events
 - Support more note kinds
 - Investigate GenericArray to make length of content able to be larger without always filling memory
 
