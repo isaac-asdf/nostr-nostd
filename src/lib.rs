@@ -23,7 +23,9 @@
 
 pub use heapless::{String, Vec};
 use relay_responses::AuthMessage;
-use secp256k1::{self, ffi::types::AlignedType, KeyPair, Message, XOnlyPublicKey};
+use secp256k1::{
+    self, ffi::types::AlignedType, schnorr::Signature, KeyPair, Message, XOnlyPublicKey,
+};
 use sha2::{Digest, Sha256};
 use utils::to_decimal_str;
 
@@ -443,6 +445,41 @@ impl Note {
         Ok(())
     }
 
+    /// Validates the events signature
+    pub fn validate_signature(&self) -> Result<(), errors::Error> {
+        let mut buf = [AlignedType::zeroed(); 64];
+        let sig_obj = secp256k1::Secp256k1::preallocated_new(&mut buf)
+            .map_err(|_| errors::Error::Secp256k1Error)?;
+
+        let mut msg = [0_u8; 32];
+        base16ct::lower::decode(&self.id, &mut msg)
+            .map_err(|_| errors::Error::InternalSigningError)
+            .expect("1");
+
+        let message = Message::from_slice(&msg)
+            .map_err(|_| errors::Error::InternalSigningError)
+            .expect("2");
+        let mut msg = [0_u8; 64];
+        base16ct::lower::decode(&self.sig, &mut msg)
+            .map_err(|_| errors::Error::InternalSigningError)
+            .expect("5");
+        let sig = Signature::from_slice(&msg)
+            .map_err(|_| errors::Error::InternalSigningError)
+            .expect("3");
+
+        let mut msg = [0_u8; 32];
+        base16ct::lower::decode(&self.pubkey, &mut msg)
+            .map_err(|_| errors::Error::InternalSigningError)
+            .expect("1");
+        let pubkey = XOnlyPublicKey::from_slice(&msg)
+            .map_err(|_| errors::Error::InternalSigningError)
+            .expect("4");
+
+        sig_obj
+            .verify_schnorr(&sig, &message, &pubkey)
+            .map_err(|_| errors::Error::InvalidSignature)
+    }
+
     fn to_json(&self) -> Vec<u8, 1000> {
         let mut output: Vec<u8, 1000> = Vec::new();
         br#"{"content":""#.iter().for_each(|bs| {
@@ -696,6 +733,17 @@ mod tests {
         let note = get_note();
         let msg = note.to_json();
         assert_eq!(&msg, output);
+    }
+
+    #[test]
+    fn json_sig_invalid() {
+        let json = r#"{"content":"esptest","created_at":1686880020,"id":"b515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]"#;
+        let note = Note::try_from(json);
+        assert!(note.is_ok());
+
+        let json = r#"{"content":"esptest","created_at":1686880020,"id":"c515da91ac5df638fae0a6e658e03acc1dda6152dd2107d02d5702ccfcf927e8","kind":1,"pubkey":"098ef66bce60dd4cf10b4ae5949d1ec6dd777ddeb4bc49b47f97275a127a63cf","sig":"89a4f1ad4b65371e6c3167ea8cb13e73cf64dd5ee71224b1edd8c32ad817af2312202cadb2f22f35d599793e8b1c66b3979d4030f1e7a252098da4a4e0c48fab","tags":[]"#;
+        let note = Note::try_from(json);
+        assert_eq!(note, Err(errors::Error::InvalidSignature))
     }
 
     #[test]

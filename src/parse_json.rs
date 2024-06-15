@@ -197,8 +197,7 @@ impl TryFrom<&str> for Note {
         })?;
 
         // todo: need to add signature verification
-
-        Ok(Note {
+        let note = Note {
             id,
             pubkey,
             created_at,
@@ -206,6 +205,8 @@ impl TryFrom<&str> for Note {
             tags,
             content,
             sig,
-        })
+        };
+        note.validate_signature()?;
+        Ok(note)
     }
 }

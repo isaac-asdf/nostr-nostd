@@ -6,6 +6,7 @@ pub enum Error {
     InvalidPrivkey,
     InternalPubkeyError,
     InternalSigningError,
+    InvalidSignature,
     TagNameTooLong,
     UnknownKind,
     InvalidType,
